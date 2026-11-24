@@ -15,7 +15,8 @@ chrono_drive is a physics-first driving simulator built on Project Chrono. The g
 - `build-crm/`: an experimental CUDA build of Chrono (FSI/SPH, CRM demos). It is not linked by chrono_drive.
 - `data/vehicle/proto/`: the test vehicle (JSON written by `tools/gen_vehicle.py`), loaded with Chrono's generic `WheeledVehicle`. `SetVehicleDataPath` points to `data/vehicle/`.
 - `src/sweep.cpp`: `suspension_sweep`, a kinematic check of the proto suspension.
-- `src/main.cpp`: the application. `data/maps/`: grayscale heightmaps. `tools/gen_heightmap.py` writes `test_track.bmp` (a flat strip along X with hills on both sides).
+- `src/main.cpp`: the application. `data/maps/`: grayscale heightmaps. `tools/gen_heightmap.py` writes `test_track.bmp`: a 140 m x 40 m map with a flat strip along X at height 0, hills on both sides, cross-axle ditches (x = 33..45) and a side slope (x = 50..64). The map size and height range (-0.5 to 2 m) in the script must match `main.cpp`.
+- The test course (`main.cpp`) has rigid obstacles on the strip, from the spawn point at x = -60: bump (-50), staggered bumps (-40/-37), log (-28), washboard (-18), whoops (-5..7.5), and a ramp up to a 0.5 m step with a drop (12..21). The ditches and the slope come after them.
 
 ## Build and run
 
@@ -73,12 +74,13 @@ nix develop -c ./build/chrono_drive
 - **More threads do not help.** One thread is as fast as eight, and sixteen is slower.
 - **The cause was full re-upload of mutable meshes.** Unpatched `ChVisualSystemVSG::Update()` rewrote and marked dirty the full vertex, normal, and color arrays of every mutable mesh each frame. VSG 1.1.16 has no partial buffer upload.
 - **Fix (fork commit `831aef9`): tiled mutable meshes.** `ChVisualSystemVSG` splits each mutable triangle mesh into tiles of 16384 triangles. `ChVisualShapeTriangleMesh` accumulates modified vertices (`AddModifiedVertices`). SCM adds to that list. The VSG layer rewrites only the tiles that hold modified vertices, then clears the list. A shape without a modified list rewrites all tiles.
+- **The soil is softer than Chrono's demo soil:** Kphi = 1.4e6 instead of 2e6. Proto sinks 82 mm instead of 65 mm at rest.
 - **A coarse grid changes the physics.** At 0.4 m, the HMMWV reached 1.4 m/s at full throttle. At 0.1 m, it reached 8.5 m/s. Do not use a coarse grid as a performance fix.
 - **CRM (SPH sand) is GPU-bound.** It is about 10x slower than real time on a 20 m x 3 m strip. It is not a candidate for real-time play.
 
 ## Benchmark mode (temporary)
 
-`main.cpp` reads environment overrides: `BENCH=<sim seconds>` (full throttle, prints a timing line, then exits), `GRID`, `MAP`, `THR`, `RENDER=0`, `PACE=1`. Example:
+`main.cpp` reads environment overrides: `BENCH=<sim seconds>` (full throttle, prints a timing line, then exits), `GRID`, `THR`, `RENDER=0`, `PACE=1`. Example:
 
 ```sh
 nix develop -c sh -c 'BENCH=10 GRID=0.05 ./build/chrono_drive'
@@ -90,11 +92,11 @@ Other overrides: `WIRE=0` renders solid terrain. `SHOT=<file.png>` writes the la
 
 For an unpatched comparison, use `git -C chrono worktree add --detach ../chrono-base <commit>`, build it into `build-chrono-base`, then configure the app with `-DChrono_DIR=$PWD/build-chrono-base/cmake` into `build-base`. These directories are gitignored.
 
-Ride logging: `LOG=<file.csv>` writes t, x, chassis z, pitch, roll, the FL, FR, RL, RR spring lengths, and the FL, FR steer angles [rad] every 5 steps. `THROTTLE` sets the benchmark throttle (default 1). `SPAWNX` sets the spawn x. Examples:
+Ride logging: `LOG=<file.csv>` writes t, x, chassis z, pitch, roll, the FL, FR, RL, RR spring lengths, and the FL, FR steer angles [rad] every 5 steps. `THROTTLE` sets the benchmark throttle (default 1). `SPAWNX` sets the spawn x (default -60), for a test of one section. Examples:
 
 ```sh
 BENCH=3 THROTTLE=0 LOG=settle.csv ./build/chrono_drive    # static ride height
-BENCH=5 SPAWNX=0 LOG=bump.csv ./build/chrono_drive        # full throttle over the first bump (x = 10)
+BENCH=5 SPAWNX=-60 LOG=bump.csv ./build/chrono_drive      # full throttle over the first bump (x = -50)
 ```
 
 Vehicle preview: `PREVIEW=uaz452` or `PREVIEW=man10t` drives one of Chrono's vehicles instead of proto. The files in `data/vehicle/preview/` replace the parts that do not work on SCM:

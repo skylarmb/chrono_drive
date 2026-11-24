@@ -6,8 +6,9 @@
 //   W / S        throttle / brake (held, game-style)
 //   A / D        steer left / right
 //   Z            toggle forward / reverse;  X  neutral
-//   1..5         camera mode: chase, follow, track, inside, free
-//   6            side view of the test track (the start view)
+//   1..4         camera mode: chase, follow, track, inside
+//   5            3/4 chase view (replaces the free camera)
+//   6            side view: a fixed camera beside the vehicle (the start view)
 //   R            restart: fresh map and vehicle, same model
 //   Esc          quit
 //   Arrow keys   orbit (left/right) and zoom (up/down) the camera
@@ -39,34 +40,44 @@ using namespace chrono::vehicle;
 // -----------------------------------------------------------------------------
 
 // Grayscale heightmap: black = min_height, white = max_height.
-const std::string heightmap = CHRONO_DRIVE_DATA_DIR "maps/test_track.bmp";  // tools/gen_heightmap.py
+// tools/gen_heightmap.py writes it. The map size and height range must match that script.
+const std::string heightmap = CHRONO_DRIVE_DATA_DIR "maps/test_track.bmp";
 // BENCH (temporary): env overrides for benchmarking.
 static double envd(const char* k, double d) { const char* v = getenv(k); return v ? atof(v) : d; }
-const double map_size = envd("MAP", 60.0);    // square map edge length [m]
-const double min_height = 0.0;   // [m]
+const double map_x = 140.0, map_y = 40.0;  // map size [m]; the course runs along +X on the strip at y = 0
+const double min_height = -0.5;  // [m]
 const double max_height = 2.0;   // [m]
 const double grid_delta = envd("GRID", 0.1);   // SCM grid spacing [m]; smaller = finer ruts, slower
 
 // Physics step [s]. SMC contact with SCM is stable at 2 ms.
 const double step_size = 2e-3;
 
-// Fixed camera beside the bumps. The chase camera stays here and turns to follow the vehicle.
-const ChVector3d side_camera(17, -14, 2.5);
+// Side view: a fixed camera to the right of and slightly ahead of a point. It stays there and turns to
+// follow the vehicle.
+static ChVector3d SideCamera(const ChVector3d& p) { return p + ChVector3d(8, -12, 2); }
 
-// Keys that the vehicle viewer does not handle.
+// 3/4 chase view: the chase camera orbited this far around the vehicle [rad].
+const double three_quarter_angle = CH_PI / 4;
+
+// Keys that the vehicle viewer does not handle (6, R), or that we change (5).
 class AppKeys : public vsg3d::ChEventHandlerVSG {
   public:
-    AppKeys(ChWheeledVehicleVisualSystemVSG& vis, bool& restart) : vis(vis), restart(restart) {}
+    AppKeys(ChWheeledVehicleVisualSystemVSG& vis, bool& restart, bool& three_quarter)
+        : vis(vis), restart(restart), three_quarter(three_quarter) {}
     void process(vsg::KeyPressEvent& ev) override {
         if (ev.keyBase == vsg::KEY_6)
-            vis.GetChaseCamera().SetCameraPos(side_camera);
+            vis.GetChaseCamera().SetCameraPos(SideCamera(vis.GetChaseCamera().GetTargetPos()));
         if (ev.keyBase == vsg::KEY_r)
             restart = true;
+        // The vehicle viewer handles 5 after this handler (free camera), so the main loop applies the view.
+        if (ev.keyBase == vsg::KEY_5)
+            three_quarter = true;
     }
 
   private:
     ChWheeledVehicleVisualSystemVSG& vis;
     bool& restart;
+    bool& three_quarter;
 };
 
 // Build and run one simulation. Returns true if the user asked for a restart.
@@ -90,7 +101,7 @@ static bool run() {
     // -------------------------------------------------------------------------
     SCMTerrain terrain(&sys);
     // Soil parameters from Chrono's demo_VEH_SCMTerrain_WheeledVehicle (firm loose soil).
-    terrain.SetSoilParameters(2e6,   // Bekker Kphi
+    terrain.SetSoilParameters(1.4e6, // Bekker Kphi (2e6 in the Chrono demo; 1.4e6 sinks 25% deeper, more mud-like)
                               0,     // Bekker Kc
                               1.1,   // Bekker n exponent
                               0,     // Mohr cohesive limit [Pa]
@@ -98,39 +109,66 @@ static bool run() {
                               0.01,  // Janosi shear coefficient [m]
                               2e8,   // elastic stiffness [Pa/m]
                               3e4);  // damping [Pa s/m]
-    terrain.Initialize(heightmap, map_size, map_size, min_height, max_height, grid_delta);
+    terrain.Initialize(heightmap, map_x, map_y, min_height, max_height, grid_delta);
     terrain.SetPlotType(SCMTerrain::PLOT_SINKAGE, 0, 0.1);  // false-color ruts by depth
     terrain.GetMesh()->SetWireframe(envd("WIRE", 1) != 0);  // BENCH (temporary): WIRE=0 renders solid
 
     // -------------------------------------------------------------------------
-    // Suspension test obstacles on the flat strip (+X from the spawn point)
+    // Test course along +X on the flat strip. Rigid obstacles first, then the terrain sections in the
+    // heightmap: cross-axle ditches (x = 33..45) and a side slope (x = 50..64).
     // -------------------------------------------------------------------------
-    // Each bump is a fixed cylinder across the track, buried so that `height` shows above the ground.
     // Rigid ground material from Chrono's vehicle demos. The SMC default (E = 2e5 Pa) lets the tires sink in.
-    auto bump_mat = chrono_types::make_shared<ChContactMaterialSMC>();
-    bump_mat->SetFriction(0.9f);
-    bump_mat->SetRestitution(0.01f);
-    bump_mat->SetYoungModulus(2e7f);
-    bump_mat->SetPoissonRatio(0.3f);
-    auto add_bump = [&](double x, double y, double width, double radius, double height) {
-        auto bump = chrono_types::make_shared<ChBodyEasyCylinder>(ChAxis::Y, radius, width, 1000, true, true, bump_mat);
-        bump->SetFixed(true);
-        bump->SetPos(ChVector3d(x, y, terrain.GetHeight(ChVector3d(x, y, 0)) + height - radius));
-        bump->GetVisualShape(0)->SetColor(ChColor(0.8f, 0.6f, 0.1f));
-        sys.Add(bump);
+    auto obstacle_mat = chrono_types::make_shared<ChContactMaterialSMC>();
+    obstacle_mat->SetFriction(0.9f);
+    obstacle_mat->SetRestitution(0.01f);
+    obstacle_mat->SetYoungModulus(2e7f);
+    obstacle_mat->SetPoissonRatio(0.3f);
+    auto ground = [&](double x, double y) { return terrain.GetHeight(ChVector3d(x, y, 0)); };
+    auto add_obstacle = [&](std::shared_ptr<ChBody> body, const ChVector3d& pos) {
+        body->SetFixed(true);
+        body->SetPos(pos);
+        body->GetVisualShape(0)->SetColor(ChColor(0.8f, 0.6f, 0.1f));
+        sys.Add(body);
+        return body;
     };
-    // Single full-width bump: both wheels of an axle hit it together (heave and pitch).
-    add_bump(10, 0, 3.75, 0.375, 0.15);
-    // Staggered bumps one wheelbase apart (3.0 m, see tools/gen_vehicle.py): the front right and rear left wheels
-    // are on bumps at the same time, which twists the chassis (cross-axle articulation).
-    add_bump(20.0, 0.9, 1.25, 0.375, 0.15);   // left wheels
-    add_bump(23.0, -0.9, 1.25, 0.375, 0.15);  // right wheels
+    // A bump is a cylinder across the track, buried so that `height` shows above the ground.
+    auto add_bump = [&](double x, double y, double width, double radius, double height) {
+        add_obstacle(chrono_types::make_shared<ChBodyEasyCylinder>(ChAxis::Y, radius, width, 1000, true, true, obstacle_mat),
+                     ChVector3d(x, y, ground(x, y) + height - radius));
+    };
+    const double width = 3.75;  // full-width obstacles [m]
+
+    // 1. Single full-width bump: both wheels of an axle hit it together (heave and pitch).
+    add_bump(-50, 0, width, 0.375, 0.15);
+    // 2. Staggered bumps one wheelbase apart (3.0 m, see tools/gen_vehicle.py): the front right and rear left
+    //    wheels are on bumps at the same time, which twists the chassis (cross-axle articulation).
+    add_bump(-40, 0.9, 1.25, 0.375, 0.15);  // left wheels
+    add_bump(-37, -0.9, 1.25, 0.375, 0.15);  // right wheels
+    // 3. Log: a big hit that reaches the bump stops.
+    add_bump(-28, 0, width, 0.18, 0.30);
+    // 4. Washboard: small, closely spaced bumps (high-frequency damping, wheel hop).
+    for (int i = 0; i < 10; i++)
+        add_bump(-18 + 0.6 * i, 0, width, 0.15, 0.05);
+    // 5. Whoops: alternating left and right bumps (repeated roll).
+    for (int i = 0; i < 6; i++)
+        add_bump(-5 + 2.5 * i, i % 2 ? -0.9 : 0.9, 1.25, 0.375, 0.15);
+    // 6. Ramp up onto a 0.5 m step, then a drop off its end (landing, bottoming).
+    const double ramp_x0 = 12, ramp_len = 3, step_len = 6, step_h = 0.5, thick = 0.3;
+    const double ramp_angle = std::atan2(step_h, ramp_len);
+    auto ramp = add_obstacle(chrono_types::make_shared<ChBodyEasyBox>(std::hypot(ramp_len, step_h), width, thick, 1000,
+                                                                      true, true, obstacle_mat),
+                             // Top face center, moved down half the thickness along the face normal.
+                             ChVector3d(ramp_x0 + ramp_len / 2, 0, ground(ramp_x0, 0) + step_h / 2) +
+                                 (thick / 2) * ChVector3d(std::sin(ramp_angle), 0, -std::cos(ramp_angle)));
+    ramp->SetRot(QuatFromAngleY(-ramp_angle));  // the +X end rises
+    add_obstacle(chrono_types::make_shared<ChBodyEasyBox>(step_len, width, step_h + thick, 1000, true, true, obstacle_mat),
+                 ChVector3d(ramp_x0 + ramp_len + step_len / 2, 0, ground(ramp_x0, 0) + (step_h - thick) / 2));
 
     // -------------------------------------------------------------------------
     // Vehicle: spawn at the map center, just above the ground
     // -------------------------------------------------------------------------
-    // BENCH (temporary): in benchmark mode, spawn 5 m from the -X edge so the run stays on the map.
-    const double spawn_x = envd("SPAWNX", envd("BENCH", 0) > 0 ? -map_size / 2 + 5 : 0);
+    // Spawn at the start of the course (SPAWNX overrides, for tests of one section).
+    const double spawn_x = envd("SPAWNX", -60);
     // Vehicle specs: JSON paths and the spawn height of the chassis frame above the ground.
     struct Spec {
         std::string vehicle, engine, transmission, tire;
@@ -197,10 +235,10 @@ static bool run() {
     vis->SetLightDirection(1.5 * CH_PI_2, CH_PI_4);
     vis->EnableShadows();
     vis->EnableSkyTexture(SkyMode::DOME);
-    bool restart = false;
-    vis->AddEventHandler(chrono_types::make_shared<AppKeys>(*vis, restart));
+    bool restart = false, three_quarter = false;
+    vis->AddEventHandler(chrono_types::make_shared<AppKeys>(*vis, restart, three_quarter));
     vis->Initialize();
-    vis->GetChaseCamera().SetCameraPos(side_camera);
+    vis->GetChaseCamera().SetCameraPos(SideCamera(ChVector3d(spawn_x, 0, spawn_z)));
 
     // -------------------------------------------------------------------------
     // Loop: step physics, render at ~60 fps, cap to real time
@@ -218,6 +256,11 @@ static bool run() {
     t_wall.start();
 
     while (vis->Run() && !restart) {
+        if (three_quarter) {  // key 5 (see AppKeys)
+            vis->SetChaseCameraState(utils::ChChaseCamera::Chase);
+            vis->GetChaseCamera().SetCameraAngle(three_quarter_angle);
+            three_quarter = false;
+        }
         double time = sys.GetChTime();
 
         if (bench_t > 0 && time >= bench_t) {
@@ -225,7 +268,7 @@ static bool run() {
             double w = t_wall.GetTimeSeconds();
             printf("MAP=%g GRID=%g THR=%g RENDER=%d | v=%.2f RTF=%.2f | wall=%.2f render=%.2f step=%.2f "
                    "(coll=%.2f solve=%.2f) other=%.2f\n",
-                   map_size, grid_delta, envd("THR", 8), bench_render, vehicle.GetSpeed(), time / w, w,
+                   map_x, grid_delta, envd("THR", 8), bench_render, vehicle.GetSpeed(), time / w, w,
                    t_render.GetTimeSeconds(), t_step.GetTimeSeconds(), coll, solve,
                    w - t_render.GetTimeSeconds() - t_step.GetTimeSeconds());
             // SHOT=<file.png>: capture one final frame for visual checks.
