@@ -1,0 +1,57 @@
+{
+  "Name": "MAN transmission (preview: gear ratios include a 6:1 final drive)",
+  "Type": "Transmission",
+  "Template": "AutomaticTransmissionSimpleMap",
+  "Gear Box": {
+    "Reverse Gear Ratio": -0.014920919166666666,
+    "Forward Gear Ratios": [
+      0.01283,
+      0.01967,
+      0.027,
+      0.03683,
+      0.04717,
+      0.06933,
+      0.0955,
+      0.13,
+      0.16667
+    ],
+    "Shift Points Map RPM": [
+      [
+        0,
+        2200
+      ],
+      [
+        1000,
+        2200
+      ],
+      [
+        1000,
+        2200
+      ],
+      [
+        1000,
+        2200
+      ],
+      [
+        1000,
+        2200
+      ],
+      [
+        1000,
+        2200
+      ],
+      [
+        1000,
+        2200
+      ],
+      [
+        1000,
+        2200
+      ],
+      [
+        1000,
+        2200
+      ]
+    ]
+  }
+}

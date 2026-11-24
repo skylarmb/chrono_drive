@@ -95,4 +95,8 @@ BENCH=3 THROTTLE=0 LOG=settle.csv ./build/chrono_drive    # static ride height
 BENCH=5 SPAWNX=0 LOG=bump.csv ./build/chrono_drive        # full throttle over the first bump (x = 10)
 ```
 
+Vehicle preview: `PREVIEW=uaz452` or `PREVIEW=man10t` drives one of Chrono's vehicles instead of proto. The files in `data/vehicle/preview/` replace the parts that do not work on SCM:
+- **UAZ-452:** a 4WD copy and a rigid tire (Chrono ships only Pacejka and TMeasy tires for it).
+- **MAN 10t:** a simple engine and a transmission with a 6:1 final drive. Its engine map gives about 150 N m at 0 rpm, and the simple transmission has no torque converter. Its `SimpleDrivelineXWD` has no final drive. Without these files, the truck does not move on SCM.
+
 Remove this code after the SCM render work and the suspension tune are complete.

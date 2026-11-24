@@ -1,0 +1,8 @@
+{
+  "Name": "MAN simple engine (preview: torque from 0 rpm, about 440 hp)",
+  "Type": "Engine",
+  "Template": "EngineSimple",
+  "Maximum Engine Torque": 1250,
+  "Maximum Engine Power": 324000,
+  "Maximum Engine Speed": 2200
+}

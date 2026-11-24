@@ -131,39 +131,52 @@ static bool run() {
     // -------------------------------------------------------------------------
     // BENCH (temporary): in benchmark mode, spawn 5 m from the -X edge so the run stays on the map.
     const double spawn_x = envd("SPAWNX", envd("BENCH", 0) > 0 ? -map_size / 2 + 5 : 0);
+    // Vehicle specs: JSON paths and the spawn height of the chassis frame above the ground.
+    struct Spec {
+        std::string vehicle, engine, transmission, tire;
+        double spawn_height;
+    };
+    // Test vehicle (tools/gen_vehicle.py writes data/vehicle/proto/). Press R to restart with new values.
     // The chassis frame origin is at wheel center height: tire radius (0.45 m) plus a small drop.
-    const double spawn_z = terrain.GetHeight(ChVector3d(spawn_x, 0, 0)) + 0.5;
+    Spec spec{"proto/vehicle.json", "proto/engine.json", "proto/transmission.json", "proto/tire.json", 0.5};
 
-    // PREVIEW (temporary): UAZ=1 drives Chrono's UAZ-452 (4WD copy in data/vehicle/preview/, rigid tires).
-    const bool uaz = envd("UAZ", 0) != 0;
-    if (uaz)
-        SetVehicleDataPath(CHRONO_DATA_DIR "vehicle/");  // the UAZ parts and meshes live in Chrono's data
-    const auto vis_type = uaz ? VisualizationType::MESH : VisualizationType::PRIMITIVES;
+    // PREVIEW (temporary): PREVIEW=uaz452 or PREVIEW=man10t drives one of Chrono's vehicles instead.
+    const std::string preview = getenv("PREVIEW") ? getenv("PREVIEW") : "";
+    const std::string preview_dir = CHRONO_DRIVE_DATA_DIR "vehicle/preview/";
+    if (!preview.empty())
+        SetVehicleDataPath(CHRONO_DATA_DIR "vehicle/");  // their parts and meshes live in Chrono's data
+    if (preview == "uaz452")  // 4WD copy of the UAZ-452 van, with a rigid tire of the UAZ size
+        spec = {preview_dir + "UAZBUS_4WD.json", "uaz/powertrain/UAZBUS_EngineSimpleMap.json",
+                "uaz/powertrain/UAZBUS_AutomaticTransmissionSimpleMap.json", preview_dir + "uaz_rigid_tire.json", 0.5};
+    if (preview == "man10t")  // MAN 10t 8x8 with its own rigid mesh tire (0.63 m radius). Its engine map stalls at 0 rpm without a torque converter, and its XWD driveline has no final drive.
+        spec = {"MAN/vehicle/MAN_10t_Vehicle_8WD.json", preview_dir + "man_engine_simple.json",
+                preview_dir + "man_transmission.json", "MAN/tire/MAN_RigidMeshTire.json", 0.8};
+    // Absolute paths are ours; others are relative to the vehicle data path.
+    auto path = [](const std::string& f) { return f[0] == '/' ? f : GetVehicleDataFile(f); };
+    const auto vis_type = preview.empty() ? VisualizationType::PRIMITIVES : VisualizationType::MESH;
+    const double spawn_z = terrain.GetHeight(ChVector3d(spawn_x, 0, 0)) + spec.spawn_height;
 
-    // Test vehicle from JSON (tools/gen_vehicle.py writes data/vehicle/proto/). Press R to restart with new values.
-    WheeledVehicle vehicle(&sys, uaz ? CHRONO_DRIVE_DATA_DIR "vehicle/preview/UAZBUS_4WD.json"
-                                     : GetVehicleDataFile("proto/vehicle.json"));
+    WheeledVehicle vehicle(&sys, path(spec.vehicle));
     vehicle.Initialize(ChCoordsys<>(ChVector3d(spawn_x, 0, spawn_z), QUNIT));
     vehicle.SetChassisVisualizationType(vis_type);
     vehicle.SetSuspensionVisualizationType(VisualizationType::PRIMITIVES);
     vehicle.SetSteeringVisualizationType(VisualizationType::PRIMITIVES);
     vehicle.SetWheelVisualizationType(vis_type);
 
-    auto engine = ReadEngineJSON(GetVehicleDataFile(uaz ? "uaz/powertrain/UAZBUS_EngineSimpleMap.json" : "proto/engine.json"));
-    auto transmission = ReadTransmissionJSON(GetVehicleDataFile(
-        uaz ? "uaz/powertrain/UAZBUS_AutomaticTransmissionSimpleMap.json" : "proto/transmission.json"));
+    auto engine = ReadEngineJSON(path(spec.engine));
+    auto transmission = ReadTransmissionJSON(path(spec.transmission));
     vehicle.InitializePowertrain(chrono_types::make_shared<ChPowertrainAssembly>(engine, transmission));
 
     for (auto& axle : vehicle.GetAxles())
         for (auto& wheel : axle->GetWheels())
-            vehicle.InitializeTire(ReadTireJSON(uaz ? CHRONO_DRIVE_DATA_DIR "vehicle/preview/uaz_rigid_tire.json"
-                                                    : GetVehicleDataFile("proto/tire.json")),
-                                   wheel, vis_type);
+            vehicle.InitializeTire(ReadTireJSON(path(spec.tire)), wheel, vis_type);
 
-    // Only ray-cast SCM nodes near the tires (big speedup on large maps).
+    // Only ray-cast SCM nodes near the tires (big speedup on large maps). The box covers the whole tire.
     for (auto& axle : vehicle.GetAxles())
-        for (auto& wheel : axle->GetWheels())
-            terrain.AddActiveDomain(wheel->GetSpindle(), VNULL, ChVector3d(1.0, 0.6, 1.0));
+        for (auto& wheel : axle->GetWheels()) {
+            double r = wheel->GetTire()->GetRadius();
+            terrain.AddActiveDomain(wheel->GetSpindle(), VNULL, ChVector3d(2.2 * r, 0.6, 2.2 * r));
+        }
 
     // -------------------------------------------------------------------------
     // Driver + visualization
@@ -266,7 +279,7 @@ static bool run() {
 
         // LOG (temporary): ride data for suspension tuning, every 5 steps.
         static std::ofstream log_file(getenv("LOG") ? getenv("LOG") : "");
-        if (log_file.is_open() && !uaz && step % 5 == 0) {  // proto only (double wishbones)
+        if (log_file.is_open() && preview.empty() && step % 5 == 0) {  // proto only (double wishbones)
             auto& ch = vehicle.GetChassis()->GetBody()->GetFrameRefToAbs();
             auto susp = [&](int a) { return std::static_pointer_cast<ChDoubleWishbone>(vehicle.GetSuspension(a)); };
             log_file << time << "," << vehicle.GetPos().x() << "," << ch.GetPos().z() << "," << ch.GetRot().GetCardanAnglesXYZ().y()
