@@ -1,0 +1,89 @@
+{
+  "Name": "proto frame",
+  "Type": "Chassis",
+  "Template": "RigidChassis",
+  "Components": [
+    {
+      "Centroidal Frame": {
+        "Location": [
+          0.0,
+          0,
+          0.45
+        ],
+        "Orientation": [
+          1,
+          0,
+          0,
+          0
+        ]
+      },
+      "Mass": 2000.0,
+      "Moments of Inertia": [
+        779.9999999999999,
+        2906.6666666666665,
+        3206.666666666667
+      ],
+      "Products of Inertia": [
+        0,
+        0,
+        0
+      ],
+      "Void": false
+    }
+  ],
+  "Driver Position": {
+    "Location": [
+      0,
+      0.5,
+      1.2
+    ],
+    "Orientation": [
+      1,
+      0,
+      0,
+      0
+    ]
+  },
+  "Visualization": {
+    "Primitives": [
+      {
+        "Type": "BOX",
+        "Location": [
+          0,
+          0,
+          0.5
+        ],
+        "Orientation": [
+          1,
+          0,
+          0,
+          0
+        ],
+        "Dimensions": [
+          4.2,
+          1.4,
+          0.3
+        ]
+      },
+      {
+        "Type": "BOX",
+        "Location": [
+          1.9000000000000001,
+          0,
+          0.7499999999999999
+        ],
+        "Orientation": [
+          1,
+          0,
+          0,
+          0
+        ],
+        "Dimensions": [
+          0.4,
+          1.4,
+          0.2
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,61 @@
+{
+  "Name": "proto",
+  "Type": "Vehicle",
+  "Template": "WheeledVehicle",
+  "Chassis": {
+    "Input File": "proto/chassis.json"
+  },
+  "Axles": [
+    {
+      "Suspension Input File": "proto/suspension_front.json",
+      "Suspension Location": [
+        1.5,
+        0,
+        0
+      ],
+      "Left Wheel Input File": "proto/wheel.json",
+      "Right Wheel Input File": "proto/wheel.json",
+      "Left Brake Input File": "proto/brake.json",
+      "Right Brake Input File": "proto/brake.json",
+      "Steering Index": 0
+    },
+    {
+      "Suspension Input File": "proto/suspension_rear.json",
+      "Suspension Location": [
+        -1.5,
+        0,
+        0
+      ],
+      "Left Wheel Input File": "proto/wheel.json",
+      "Right Wheel Input File": "proto/wheel.json",
+      "Left Brake Input File": "proto/brake.json",
+      "Right Brake Input File": "proto/brake.json"
+    }
+  ],
+  "Steering Subsystems": [
+    {
+      "Input File": "proto/steering.json",
+      "Location": [
+        1.35,
+        0,
+        0.0
+      ],
+      "Orientation": [
+        1,
+        0,
+        0,
+        0
+      ]
+    }
+  ],
+  "Wheelbase": 3.0,
+  "Minimum Turning Radius": 6.000000000000001,
+  "Maximum Steering Angle (deg)": 30.0,
+  "Driveline": {
+    "Input File": "proto/driveline.json",
+    "Suspension Indexes": [
+      0,
+      1
+    ]
+  }
+}

@@ -1,4 +1,4 @@
-// chrono_drive: drive an HMMWV over deformable (SCM) terrain.
+// chrono_drive: drive a test vehicle over deformable (SCM) terrain.
 //
 // Frame convention (Chrono::Vehicle): Z up, X forward, Y left.
 //
@@ -80,10 +80,9 @@ static bool run() {
     ChSystemSMC sys;
     sys.SetCollisionSystemType(ChCollisionSystem::Type::BULLET);
     sys.SetGravitationalAcceleration(ChVector3d(0, 0, -9.81));
-    // Match the solver ChVehicle sets on a system it creates itself (ChVehicle.cpp). The generic
-    // default (PSOR) is too weak for the suspension and steering joints, which then stretch under load.
-    sys.SetSolverType(ChSolver::Type::BARZILAIBORWEIN);
-    sys.GetSolver()->AsIterative()->SetMaxIterations(150);
+    // Direct sparse solver: the suspension and steering joints hold exactly. The generic default
+    // (PSOR) lets them stretch under load. SMC contacts are forces, so a direct solver works here.
+    sys.SetSolverType(ChSolver::Type::SPARSE_LU);
     sys.SetNumThreads((int)envd("THR", 8), (int)envd("THR", 8), 1);
 
     // -------------------------------------------------------------------------
@@ -122,34 +121,35 @@ static bool run() {
     };
     // Single full-width bump: both wheels of an axle hit it together (heave and pitch).
     add_bump(10, 0, 3.75, 0.375, 0.15);
-    // Staggered bumps one wheelbase apart (HMMWV: 3.3 m): the front right and rear left wheels
+    // Staggered bumps one wheelbase apart (3.0 m, see tools/gen_vehicle.py): the front right and rear left wheels
     // are on bumps at the same time, which twists the chassis (cross-axle articulation).
     add_bump(20.0, 0.9, 1.25, 0.375, 0.15);   // left wheels
-    add_bump(23.3, -0.9, 1.25, 0.375, 0.15);  // right wheels
+    add_bump(23.0, -0.9, 1.25, 0.375, 0.15);  // right wheels
 
     // -------------------------------------------------------------------------
     // Vehicle: spawn at the map center, just above the ground
     // -------------------------------------------------------------------------
     // BENCH (temporary): in benchmark mode, spawn 5 m from the -X edge so the run stays on the map.
     const double spawn_x = envd("SPAWNX", envd("BENCH", 0) > 0 ? -map_size / 2 + 5 : 0);
-    const double spawn_z = terrain.GetHeight(ChVector3d(spawn_x, 0, 0)) + 0.6;
+    // The chassis frame origin is at wheel center height: tire radius (0.45 m) plus a small drop.
+    const double spawn_z = terrain.GetHeight(ChVector3d(spawn_x, 0, 0)) + 0.5;
 
-    // HMMWV from JSON: edit data/vehicle/hmmwv/ and press R to restart with the new values.
-    WheeledVehicle vehicle(&sys, GetVehicleDataFile("hmmwv/vehicle/HMMWV_Vehicle.json"));
+    // Test vehicle from JSON (tools/gen_vehicle.py writes data/vehicle/proto/). Press R to restart with new values.
+    WheeledVehicle vehicle(&sys, GetVehicleDataFile("proto/vehicle.json"));
     vehicle.Initialize(ChCoordsys<>(ChVector3d(spawn_x, 0, spawn_z), QUNIT));
-    vehicle.SetChassisVisualizationType(VisualizationType::MESH);
+    vehicle.SetChassisVisualizationType(VisualizationType::PRIMITIVES);
     vehicle.SetSuspensionVisualizationType(VisualizationType::PRIMITIVES);
     vehicle.SetSteeringVisualizationType(VisualizationType::PRIMITIVES);
-    vehicle.SetWheelVisualizationType(VisualizationType::MESH);
+    vehicle.SetWheelVisualizationType(VisualizationType::PRIMITIVES);
 
-    auto engine = ReadEngineJSON(GetVehicleDataFile("hmmwv/powertrain/HMMWV_EngineSimple.json"));
-    auto transmission = ReadTransmissionJSON(GetVehicleDataFile("hmmwv/powertrain/HMMWV_AutomaticTransmissionSimpleMap.json"));
+    auto engine = ReadEngineJSON(GetVehicleDataFile("proto/engine.json"));
+    auto transmission = ReadTransmissionJSON(GetVehicleDataFile("proto/transmission.json"));
     vehicle.InitializePowertrain(chrono_types::make_shared<ChPowertrainAssembly>(engine, transmission));
 
     for (auto& axle : vehicle.GetAxles())
         for (auto& wheel : axle->GetWheels())
-            vehicle.InitializeTire(ReadTireJSON(GetVehicleDataFile("hmmwv/tire/HMMWV_RigidTire.json")), wheel,
-                                   VisualizationType::MESH);
+            vehicle.InitializeTire(ReadTireJSON(GetVehicleDataFile("proto/tire.json")), wheel,
+                                   VisualizationType::PRIMITIVES);
 
     // Only ray-cast SCM nodes near the tires (big speedup on large maps).
     for (auto& axle : vehicle.GetAxles())
@@ -263,7 +263,13 @@ static bool run() {
             log_file << time << "," << vehicle.GetPos().x() << "," << ch.GetPos().z() << "," << ch.GetRot().GetCardanAnglesXYZ().y()
                      << "," << ch.GetRot().GetCardanAnglesXYZ().x() << "," << susp(0)->GetSpringLength(LEFT) << ","
                      << susp(0)->GetSpringLength(RIGHT) << "," << susp(1)->GetSpringLength(LEFT) << ","
-                     << susp(1)->GetSpringLength(RIGHT) << "\n";
+                     << susp(1)->GetSpringLength(RIGHT);
+            // Front wheel steer angles relative to the chassis (spindle axis in the chassis frame)
+            for (auto side : {LEFT, RIGHT}) {
+                auto ax = ch.GetRot().RotateBack(vehicle.GetSpindleRot(0, side).GetAxisY());
+                log_file << "," << std::atan2(ax.x(), ax.y());
+            }
+            log_file << "\n";
         }
         step++;
     }

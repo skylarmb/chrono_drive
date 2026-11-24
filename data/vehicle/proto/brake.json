@@ -1,0 +1,6 @@
+{
+  "Name": "proto brake",
+  "Type": "Brake",
+  "Template": "BrakeSimple",
+  "Maximum Torque": 4000.0
+}

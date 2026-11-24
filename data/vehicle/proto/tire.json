@@ -1,0 +1,21 @@
+{
+  "Name": "proto rigid tire",
+  "Type": "Tire",
+  "Template": "RigidTire",
+  "Radius": 0.45,
+  "Width": 0.3,
+  "Mass": 40.0,
+  "Inertia": [
+    2.3249999999999997,
+    5.670000000000001,
+    2.3249999999999997
+  ],
+  "Contact Material": {
+    "Coefficient of Friction": 0.9,
+    "Coefficient of Restitution": 0.1,
+    "Properties": {
+      "Young Modulus": 20000000.0,
+      "Poisson Ratio": 0.3
+    }
+  }
+}

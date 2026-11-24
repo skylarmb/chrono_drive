@@ -4,7 +4,7 @@ Notes for agents that work on chrono_drive. `README.md` holds the user-facing bu
 
 ## Project
 
-chrono_drive is a physics-first driving simulator built on Project Chrono. The goal is a base for a game: a drivable vehicle on deformable terrain. The current state is an HMMWV on a heightmap SCM terrain patch, with keyboard driving and a chase camera.
+chrono_drive is a physics-first driving simulator built on Project Chrono. The goal is a base for a game: a drivable vehicle on deformable terrain. The current state is a simple test vehicle (box frame, double wishbones) on a heightmap SCM terrain patch with test bumps. It has keyboard driving, a side camera, and a restart key.
 
 ## Layout
 
@@ -13,7 +13,8 @@ chrono_drive is a physics-first driving simulator built on Project Chrono. The g
 - `build-chrono/`: the Chrono build that chrono_drive links against (Vehicle + VSG, no demos). This directory is gitignored.
 - `build/`: the chrono_drive build. This directory is gitignored.
 - `build-crm/`: an experimental CUDA build of Chrono (FSI/SPH, CRM demos). It is not linked by chrono_drive.
-- `data/vehicle/hmmwv/`: our HMMWV spec (JSON), loaded with Chrono's generic `WheeledVehicle`. `SetVehicleDataPath` points here. The `.obj` and `.mtl` files are symlinks into `chrono/data`. The chassis mesh path is relative to the Chrono data path, so it needs no link.
+- `data/vehicle/proto/`: the test vehicle (JSON written by `tools/gen_vehicle.py`), loaded with Chrono's generic `WheeledVehicle`. `SetVehicleDataPath` points to `data/vehicle/`.
+- `src/sweep.cpp`: `suspension_sweep`, a kinematic check of the proto suspension.
 - `src/main.cpp`: the application. `data/maps/`: grayscale heightmaps. `tools/gen_heightmap.py` writes `test_track.bmp` (a flat strip along X with hills on both sides).
 
 ## Build and run
@@ -38,7 +39,9 @@ nix develop -c ./build/chrono_drive
 
 - **Flakes see only tracked files.** Run `git add` on a new or changed file before `nix develop`, or Nix does not see it.
 - **The vehicle does not step a system it does not own.** `main.cpp` creates `ChSystemSMC` and gives it to the vehicle. Then `ChVehicle::Advance()` does not call `DoStepDynamics()` (see `ChVehicle.cpp`, `m_ownsSystem`). The loop must call `sys.DoStepDynamics()` itself.
-- **A system we own gets the wrong solver.** `ChVehicle` sets Barzilai-Borwein with 150 iterations only on a system it creates. Our system needs the same lines (`main.cpp`). With the default PSOR, the steering and suspension joints stretch: the front wheels wobble, fold in reverse, and the truck drifts about 4 m over 50 m with zero steering.
+- **A system we own gets the wrong solver.** `ChVehicle` sets a solver only on a system it creates. With the default PSOR, the steering and suspension joints stretch: the front wheels wobble, fold in reverse, and the truck drifts about 4 m over 50 m with zero steering. `main.cpp` uses `SPARSE_LU`, a direct solver. Its joints are exact, and it is faster than Barzilai-Borwein with 150 iterations (physics RTF 6.4 against about 4).
+- **`ChSimpleDriveline` created energy (fixed on the fork).** It divided the wheel torque by the bevel gear ratio but multiplied the driveshaft speed by it. The wheels then got 25 times the engine power at ratio 0.2. The fork commit on `chrono_drive` divides the speed too.
+- **A vehicle that creates its own system has no collision system.** Rigid tires then fall through the test rig posts. `sweep.cpp` sets Bullet.
 - **The default SMC contact material is soft.** `ChContactMaterialSMC` defaults to E = 2e5 Pa. Tires sink 17 cm into a bump made with it. Rigid objects use E = 2e7 Pa, friction 0.9, restitution 0.01 (as in Chrono's vehicle demos). Then the tires sink 4 cm.
 - **Do not use `ChRealtimeStepTimer::Spin()`.** It pads each step to the step size and drops the extra time from render frames. The loop then runs slower than real time on any hardware. `main.cpp` paces on accumulated sim time against the wall clock.
 - **`CHRONO_VEHICLE_DATA_DIR` from the Chrono target is wrong for us.** It points to `build-chrono/bin/data/vehicle/`, which does not exist. Use `CHRONO_DATA_DIR "vehicle/"`.
@@ -47,18 +50,19 @@ nix develop -c ./build/chrono_drive
 - **nvcc 12.9 does not accept GCC 16.** The `cuda` shell uses `cudaPackages_12.backendStdenv` (GCC 14).
 - **VSG uses X11 (xcb).** On Wayland, it runs through XWayland. It renders on the NVIDIA GPU (confirmed with `nvidia-smi pmon`).
 
-## Suspension tuning
+## Test vehicle (proto)
 
-The JSON spec started as a copy of Chrono's `HMMWV_Vehicle_4WD.json` and its parts. The suspension values are our own tune. Edit the JSON, then press R in the app to restart with the new values. A rebuild is not necessary.
+`tools/gen_vehicle.py` writes the "proto" vehicle to `data/vehicle/proto/`. Proto has a box frame with ballast mass, four double-wishbone corners, rack-and-pinion steering, and limited-slip 4WD. The parameters (mass, geometry, ride frequency, damping ratios, travel) are at the top of the script. To change the vehicle, edit the script, run it, then press R in the app. Do not edit the generated JSON by hand. `engine.json` and `transmission.json` are copies of Chrono's HMMWV powertrain, and the script does not write them.
 
-- **Chrono's HMMWV suspension sits on its droop stops.** The stock front spring is 6 mm from its droop stop at rest. The stock rear spring is 6.5 mm into its droop stop. In a bump test, the wheels spent about 1.7 s of 2.7 s on the stops. Pitch over the 15 cm bump was +/-6.7 deg.
-- **The first-pass tune (2026-11-23):**
-  - Linear springs. `Free Length` is the static length, so `Preload` (the static force) holds the ride height, and `Spring Coefficient` changes the stiffness only.
-  - Targets: 1.3 Hz front and 1.5 Hz rear, with a motion ratio of about 0.49 and about 560 kg sprung mass for each corner.
-  - Droop stops at 5 to 7 cm of spring extension. Bump stops at about 10 cm of compression.
-  - Dampers (`Damping Curve Data`, velocity in m/s and force in N, compression is negative): about 0.25 of critical in compression and 0.5 in rebound. Above 0.25 m/s, the slope falls to 40%.
-- **Result of the first-pass tune:** no time on the stops. The bump pitch is -5.3/+3.7 deg. The ride frequency is about 1.4 Hz front and 1.7 Hz rear (zero-crossing estimate, under throttle).
-- **The softer springs make the truck accelerate more slowly on SCM** (9.5 m against 11.7 m in 3 s from rest). The dampers do not cause this. The cause is not confirmed. A possible cause is toe and camber change in droop, which makes the rigid tires scrub the soil.
+`./build/suspension_sweep` runs a Chrono test rig. The rig holds the chassis and moves each wheel through its full travel, then turns the steering to full lock. The output is the toe and camber against wheel travel. Run it after each geometry change.
+
+- **Results (2026-11-24):**
+  - Toe changes by less than 0.7 deg over 30 cm of travel.
+  - Steer at full lock is 30 deg.
+  - Over the 15 cm bump at about 6 m/s, pitch is -3.7/+6.8 deg, and the springs reach both stops.
+  - The ride is soft. Tune it by feel.
+- **Spring curve convention:** `Free Length` is the ride length, and `Preload` holds the static load. The force is `Preload - curve(length - Free Length)`. The generator puts stiff progressive stops at the ends of the curve, because the JSON `Minimum/Maximum Length` stops are soft (1 kN at 10 mm).
+- **The HMMWV model (removed) was a trap for suspension work.** Its stock suspension rests on the droop stops. Its steering linkage goes over center at about 0.34 m front spring length: under throttle, a front wheel flipped to about 45 deg and locked there. Do not judge a suspension without a sweep of the full travel.
 
 ## Performance facts (2026-11-23, RTX 4090 laptop, 22 cores)
 
@@ -67,7 +71,7 @@ The JSON spec started as a copy of Chrono's `HMMWV_Vehicle_4WD.json` and its par
 - **More threads do not help.** One thread is as fast as eight, and sixteen is slower.
 - **The cause was full re-upload of mutable meshes.** Unpatched `ChVisualSystemVSG::Update()` rewrote and marked dirty the full vertex, normal, and color arrays of every mutable mesh each frame. VSG 1.1.16 has no partial buffer upload.
 - **Fix (fork commit `831aef9`): tiled mutable meshes.** `ChVisualSystemVSG` splits each mutable triangle mesh into tiles of 16384 triangles. `ChVisualShapeTriangleMesh` accumulates modified vertices (`AddModifiedVertices`). SCM adds to that list. The VSG layer rewrites only the tiles that hold modified vertices, then clears the list. A shape without a modified list rewrites all tiles.
-- **A coarse grid changes the physics.** At 0.4 m, the HMMWV reaches 1.4 m/s at full throttle. At 0.1 m, it reaches 8.5 m/s. Do not use a coarse grid as a performance fix.
+- **A coarse grid changes the physics.** At 0.4 m, the HMMWV reached 1.4 m/s at full throttle. At 0.1 m, it reached 8.5 m/s. Do not use a coarse grid as a performance fix.
 - **CRM (SPH sand) is GPU-bound.** It is about 10x slower than real time on a 20 m x 3 m strip. It is not a candidate for real-time play.
 
 ## Benchmark mode (temporary)
@@ -84,7 +88,7 @@ Other overrides: `WIRE=0` renders solid terrain. `SHOT=<file.png>` writes the la
 
 For an unpatched comparison, use `git -C chrono worktree add --detach ../chrono-base <commit>`, build it into `build-chrono-base`, then configure the app with `-DChrono_DIR=$PWD/build-chrono-base/cmake` into `build-base`. These directories are gitignored.
 
-Ride logging: `LOG=<file.csv>` writes t, x, chassis z, pitch, roll, and the FL, FR, RL, RR spring lengths every 5 steps. `THROTTLE` sets the benchmark throttle (default 1). `SPAWNX` sets the spawn x. Examples:
+Ride logging: `LOG=<file.csv>` writes t, x, chassis z, pitch, roll, the FL, FR, RL, RR spring lengths, and the FL, FR steer angles [rad] every 5 steps. `THROTTLE` sets the benchmark throttle (default 1). `SPAWNX` sets the spawn x. Examples:
 
 ```sh
 BENCH=3 THROTTLE=0 LOG=settle.csv ./build/chrono_drive    # static ride height

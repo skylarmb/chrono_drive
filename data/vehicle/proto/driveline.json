@@ -1,0 +1,10 @@
+{
+  "Name": "proto limited-slip 4WD",
+  "Type": "Driveline",
+  "Template": "SimpleDriveline",
+  "Front Torque Fraction": 0.5,
+  "Front Differential Max Bias": 2.5,
+  "Rear Differential Max Bias": 2.5,
+  "Front Conical Gear Ratio": 0.2,
+  "Rear Conical Gear Ratio": 0.2
+}

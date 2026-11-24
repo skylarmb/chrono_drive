@@ -11,11 +11,14 @@ endif()
 find_package(Chrono COMPONENTS Vehicle VSG CONFIG REQUIRED
              PATHS ${CMAKE_SOURCE_DIR}/build-chrono/cmake)
 
-add_executable(chrono_drive src/main.cpp)
-target_link_libraries(chrono_drive PRIVATE ${CHRONO_TARGETS})
+add_executable(chrono_drive src/main.cpp)           # the app
+add_executable(suspension_sweep src/sweep.cpp)      # kinematic check of the generated vehicle
 
-# Absolute data paths, so the binary runs from any working directory.
-# (CHRONO_VEHICLE_DATA_DIR is already defined by the Chrono::Chrono_vehicle target.)
-target_compile_definitions(chrono_drive PRIVATE
-  "CHRONO_DATA_DIR=\"${CHRONO_DATA_DIR}\""
-  "CHRONO_DRIVE_DATA_DIR=\"${CMAKE_SOURCE_DIR}/data/\"")
+foreach(target chrono_drive suspension_sweep)
+  target_link_libraries(${target} PRIVATE ${CHRONO_TARGETS})
+  # Absolute data paths, so the binary runs from any working directory.
+  # (CHRONO_VEHICLE_DATA_DIR is already defined by the Chrono::Chrono_vehicle target.)
+  target_compile_definitions(${target} PRIVATE
+    "CHRONO_DATA_DIR=\"${CHRONO_DATA_DIR}\""
+    "CHRONO_DRIVE_DATA_DIR=\"${CMAKE_SOURCE_DIR}/data/\"")
+endforeach()
