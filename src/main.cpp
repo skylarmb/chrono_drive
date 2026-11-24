@@ -104,7 +104,12 @@ static bool run() {
     // Suspension test obstacles on the flat strip (+X from the spawn point)
     // -------------------------------------------------------------------------
     // Each bump is a fixed cylinder across the track, buried so that `height` shows above the ground.
+    // Rigid ground material from Chrono's vehicle demos. The SMC default (E = 2e5 Pa) lets the tires sink in.
     auto bump_mat = chrono_types::make_shared<ChContactMaterialSMC>();
+    bump_mat->SetFriction(0.9f);
+    bump_mat->SetRestitution(0.01f);
+    bump_mat->SetYoungModulus(2e7f);
+    bump_mat->SetPoissonRatio(0.3f);
     auto add_bump = [&](double x, double y, double width, double radius, double height) {
         auto bump = chrono_types::make_shared<ChBodyEasyCylinder>(ChAxis::Y, radius, width, 1000, true, true, bump_mat);
         bump->SetFixed(true);
