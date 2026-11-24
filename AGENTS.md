@@ -15,6 +15,7 @@ chrono_drive is a physics-first driving simulator built on Project Chrono. The g
 - `build-crm/`: an experimental CUDA build of Chrono (FSI/SPH, CRM demos). It is not linked by chrono_drive.
 - `data/vehicle/proto/`: the test vehicle (JSON written by `tools/gen_vehicle.py`), loaded with Chrono's generic `WheeledVehicle`. `SetVehicleDataPath` points to `data/vehicle/`.
 - `src/sweep.cpp`: `suspension_sweep`, a kinematic check of the proto suspension.
+- `src/compliant_tire.h`: `CompliantTire`, a rigid cylinder on a sidewall spring (see "Tires" below). `LoadTire()` reads it, or any Chrono tire, from JSON.
 - `src/main.cpp`: the application. `data/maps/`: grayscale heightmaps. `tools/gen_heightmap.py` writes `test_track.bmp`: a 140 m x 40 m map with a flat strip along X at height 0, hills on both sides, cross-axle ditches (x = 33..45) and a side slope (x = 50..64). The map size and height range (-0.5 to 2 m) in the script must match `main.cpp`.
 - The test course (`main.cpp`) has rigid obstacles on the strip, from the spawn point at x = -60: bump (-50), staggered bumps (-40/-37), log (-28), washboard (-18), whoops (-5..7.5), and a ramp up to a 0.5 m step with a drop (12..21). The ditches and the slope come after them.
 
@@ -68,6 +69,13 @@ nix develop -c ./build/chrono_drive
   - The SimpleDriveline torque goes to the wheel shafts, so the solid axle does not show torque lift (driveshaft torque reacting on the axle). Unconfirmed: check this before tuning for it.
 - **Spring curve convention:** `Free Length` is the ride length, and `Preload` holds the static load. The force is `Preload - curve(length - Free Length)`. The generator puts stiff progressive stops at the ends of the curve, because the JSON `Minimum/Maximum Length` stops are soft (1 kN at 10 mm).
 - **The HMMWV model (removed) was a trap for suspension work.** Its stock suspension rests on the droop stops. Its steering linkage goes over center at about 0.34 m front spring length: under throttle, a front wheel flipped to about 45 deg and locked there. Do not judge a suspension without a sweep of the full travel.
+
+## Tires
+
+Only tires with a collision shape (rigid, FEA) deform SCM soil. The handling tires (TMeasy, Pacejka, Fiala) read the ground height at a point, so on SCM they ride on the surface: no sinkage and no ruts.
+
+- **`CompliantTire` (the proto default):** a rigid cylinder on its own body. An Oldham joint lets it slide in the wheel plane but turn with the hub. A spring-damper (applied in `Synchronize` through force accumulators) pulls it back to the hub, and a stiff stop acts as the rim. At 250 kN/m, it deflects 22 mm at rest. Peak chassis acceleration on the step drop falls from 2.8 g to 1.9 g, and on the whoops from 1.0 g to 0.5 g. It costs about 10% of the physics speed. The contact patch does not flatten: the footprint in soil comes from sinkage only.
+- **A segmented tire was tried and dropped (2026-11-24).** It used 12 to 24 tread blocks on prismatic joints with radial springs. Each block adds constraint rows to the direct solver, so the physics speed fell from 6.3 to 2.1 (12 blocks) and to 1.1 (24 blocks). It also drifted at zero throttle, blew up on rigid ground, and gave a singular matrix with stiff springs. Those faults were not debugged. If a flattening footprint becomes important, integrate the block motion outside the solver (1-D per block, then set the body positions directly). Do not add joints.
 
 ## Performance facts (2026-11-23, RTX 4090 laptop, 22 cores)
 

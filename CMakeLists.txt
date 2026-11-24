@@ -11,8 +11,8 @@ endif()
 find_package(Chrono COMPONENTS Vehicle VSG CONFIG REQUIRED
              PATHS ${CMAKE_SOURCE_DIR}/build-chrono/cmake)
 
-add_executable(chrono_drive src/main.cpp)           # the app
-add_executable(suspension_sweep src/sweep.cpp)      # kinematic check of the generated vehicle
+add_executable(chrono_drive src/main.cpp src/compliant_tire.cpp)  # the app
+add_executable(suspension_sweep src/sweep.cpp src/compliant_tire.cpp)  # kinematic check of the generated vehicle
 
 foreach(target chrono_drive suspension_sweep)
   target_link_libraries(${target} PRIVATE ${CHRONO_TARGETS})

@@ -29,6 +29,8 @@
 #include "chrono_vehicle/wheeled_vehicle/ChWheeledVehicleVisualSystemVSG.h"
 #include "chrono_vsg/ChEventHandlerVSG.h"
 
+#include "compliant_tire.h"
+
 #include "chrono_vehicle/utils/ChVehicleUtilsJSON.h"
 #include "chrono_vehicle/wheeled_vehicle/vehicle/WheeledVehicle.h"
 
@@ -207,7 +209,7 @@ static bool run() {
 
     for (auto& axle : vehicle.GetAxles())
         for (auto& wheel : axle->GetWheels())
-            vehicle.InitializeTire(ReadTireJSON(path(spec.tire)), wheel, vis_type);
+            vehicle.InitializeTire(LoadTire(path(spec.tire)), wheel, vis_type);
 
     // Only ray-cast SCM nodes near the tires (big speedup on large maps). The box covers the whole tire.
     for (auto& axle : vehicle.GetAxles())

@@ -17,6 +17,8 @@
 #include "chrono_vehicle/wheeled_vehicle/test_rig/ChSuspensionTestRig.h"
 #include "chrono_vehicle/wheeled_vehicle/vehicle/WheeledVehicle.h"
 
+#include "compliant_tire.h"
+
 using namespace chrono;
 using namespace chrono::vehicle;
 
@@ -60,7 +62,7 @@ int main() {
     rig->SetInitialRideHeight(0.45);  // chassis frame height above the posts: tire radius (frame origin is at wheel center)
     for (auto& axle : rig->GetVehicle().GetAxles())
         for (auto& wheel : axle->GetWheels())
-            rig->GetVehicle().InitializeTire(ReadTireJSON(GetVehicleDataFile("proto/tire.json")), wheel,
+            rig->GetVehicle().InitializeTire(LoadTire(GetVehicleDataFile("proto/tire.json")), wheel,
                                              VisualizationType::NONE);
     rig->SetDriver(chrono_types::make_shared<SweepDriver>());
     rig->Initialize();

@@ -41,6 +41,11 @@ TIRE_RADIUS = 0.45          # [m]
 TIRE_WIDTH = 0.30           # [m]
 TIRE_MASS = 40.0            # [kg]
 WHEEL_MASS = 20.0           # rim [kg]
+# Tire type: "compliant" (rigid cylinder on a sidewall spring, src/compliant_tire.h) or "rigid"
+TIRE_TYPE = "compliant"
+TIRE_STIFFNESS = 2.5e5      # sidewall stiffness [N/m]; lower = softer tire (lower pressure)
+TIRE_DAMPING = 1000.0       # sidewall damping [N s/m]
+TIRE_MAX_DEFLECTION = 0.10  # deflection where the rim stop starts [m]
 
 # Corner geometry (relative to the wheel center at ride height) [m]
 LOWER_BALL_JOINT = (0.08, -0.15)  # (inboard offset, height)
@@ -309,6 +314,11 @@ def tire():
     m, r, w = TIRE_MASS, TIRE_RADIUS, TIRE_WIDTH
     i_spin = m * r**2 * 0.7  # most of the tire mass is near the tread
     i_other = m * (3 * r**2 + w**2) / 12
+    if TIRE_TYPE == "compliant":
+        return {"Name": "proto compliant tire", "Type": "Tire", "Template": "CompliantTire",
+                "Radius": r, "Width": w, "Mass": m, "Sidewall Stiffness": TIRE_STIFFNESS,
+                "Sidewall Damping": TIRE_DAMPING, "Maximum Deflection": TIRE_MAX_DEFLECTION,
+                "Stop Stiffness": 20 * TIRE_STIFFNESS}
     return {
         "Name": "proto rigid tire",
         "Type": "Tire",
@@ -330,7 +340,7 @@ def main():
         "tire.json": tire(),
         "wheel.json": {"Name": "proto wheel", "Type": "Wheel", "Template": "Wheel", "Mass": WHEEL_MASS,
                        "Inertia": [0.3, 0.5, 0.3],
-                       "Visualization": {"Radius": TIRE_RADIUS * 0.6, "Width": TIRE_WIDTH * 0.9}},
+                       "Visualization": {"Radius": TIRE_RADIUS * 0.6, "Width": TIRE_WIDTH * 1.05}},  # rim faces show beside the tire
         "engine.json": {"Name": "proto engine", "Type": "Engine", "Template": "EngineSimple",
                         "Maximum Engine Torque": ENGINE_TORQUE, "Maximum Engine Power": ENGINE_POWER,
                         "Maximum Engine Speed": GOVERNOR_RPM * math.pi / 30},  # Chrono reads rad/s
