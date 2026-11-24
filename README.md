@@ -19,3 +19,23 @@ cmake -B build -G Ninja && ninja -C build
 ```
 
 Controls are listed at the top of `src/main.cpp`. Maps are grayscale heightmaps in `data/maps/`.
+
+## Patching Chrono
+
+Extend Chrono from `src/` (for example, by subclassing) when you can. Patch Chrono only when the code you must change is not accessible.
+
+`chrono/` tracks the `chrono_drive` branch of [skylarmb/chrono](https://github.com/skylarmb/chrono). That branch holds our patches on top of upstream. The fork's `main` stays an unmodified mirror of upstream.
+
+```sh
+# Make a patch: commit in the submodule, push it, then record the new pointer.
+git -C chrono commit -am "..." && git -C chrono push
+git add chrono && git commit -m "Bump chrono: ..."
+
+git -C chrono log --oneline upstream/main..   # list our patch set
+
+# Update Chrono: rebase our patches onto a newer upstream commit.
+git -C chrono fetch upstream && git -C chrono rebase <upstream-commit>
+git -C chrono push --force-with-lease
+```
+
+After a fresh clone, run `git -C chrono remote add upstream https://github.com/projectchrono/chrono.git`.
