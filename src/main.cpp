@@ -134,22 +134,31 @@ static bool run() {
     // The chassis frame origin is at wheel center height: tire radius (0.45 m) plus a small drop.
     const double spawn_z = terrain.GetHeight(ChVector3d(spawn_x, 0, 0)) + 0.5;
 
+    // PREVIEW (temporary): UAZ=1 drives Chrono's UAZ-452 (4WD copy in data/vehicle/preview/, rigid tires).
+    const bool uaz = envd("UAZ", 0) != 0;
+    if (uaz)
+        SetVehicleDataPath(CHRONO_DATA_DIR "vehicle/");  // the UAZ parts and meshes live in Chrono's data
+    const auto vis_type = uaz ? VisualizationType::MESH : VisualizationType::PRIMITIVES;
+
     // Test vehicle from JSON (tools/gen_vehicle.py writes data/vehicle/proto/). Press R to restart with new values.
-    WheeledVehicle vehicle(&sys, GetVehicleDataFile("proto/vehicle.json"));
+    WheeledVehicle vehicle(&sys, uaz ? CHRONO_DRIVE_DATA_DIR "vehicle/preview/UAZBUS_4WD.json"
+                                     : GetVehicleDataFile("proto/vehicle.json"));
     vehicle.Initialize(ChCoordsys<>(ChVector3d(spawn_x, 0, spawn_z), QUNIT));
-    vehicle.SetChassisVisualizationType(VisualizationType::PRIMITIVES);
+    vehicle.SetChassisVisualizationType(vis_type);
     vehicle.SetSuspensionVisualizationType(VisualizationType::PRIMITIVES);
     vehicle.SetSteeringVisualizationType(VisualizationType::PRIMITIVES);
-    vehicle.SetWheelVisualizationType(VisualizationType::PRIMITIVES);
+    vehicle.SetWheelVisualizationType(vis_type);
 
-    auto engine = ReadEngineJSON(GetVehicleDataFile("proto/engine.json"));
-    auto transmission = ReadTransmissionJSON(GetVehicleDataFile("proto/transmission.json"));
+    auto engine = ReadEngineJSON(GetVehicleDataFile(uaz ? "uaz/powertrain/UAZBUS_EngineSimpleMap.json" : "proto/engine.json"));
+    auto transmission = ReadTransmissionJSON(GetVehicleDataFile(
+        uaz ? "uaz/powertrain/UAZBUS_AutomaticTransmissionSimpleMap.json" : "proto/transmission.json"));
     vehicle.InitializePowertrain(chrono_types::make_shared<ChPowertrainAssembly>(engine, transmission));
 
     for (auto& axle : vehicle.GetAxles())
         for (auto& wheel : axle->GetWheels())
-            vehicle.InitializeTire(ReadTireJSON(GetVehicleDataFile("proto/tire.json")), wheel,
-                                   VisualizationType::PRIMITIVES);
+            vehicle.InitializeTire(ReadTireJSON(uaz ? CHRONO_DRIVE_DATA_DIR "vehicle/preview/uaz_rigid_tire.json"
+                                                    : GetVehicleDataFile("proto/tire.json")),
+                                   wheel, vis_type);
 
     // Only ray-cast SCM nodes near the tires (big speedup on large maps).
     for (auto& axle : vehicle.GetAxles())
@@ -257,7 +266,7 @@ static bool run() {
 
         // LOG (temporary): ride data for suspension tuning, every 5 steps.
         static std::ofstream log_file(getenv("LOG") ? getenv("LOG") : "");
-        if (log_file.is_open() && step % 5 == 0) {
+        if (log_file.is_open() && !uaz && step % 5 == 0) {  // proto only (double wishbones)
             auto& ch = vehicle.GetChassis()->GetBody()->GetFrameRefToAbs();
             auto susp = [&](int a) { return std::static_pointer_cast<ChDoubleWishbone>(vehicle.GetSuspension(a)); };
             log_file << time << "," << vehicle.GetPos().x() << "," << ch.GetPos().z() << "," << ch.GetRot().GetCardanAnglesXYZ().y()

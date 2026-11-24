@@ -1,0 +1,18 @@
+{
+  "Name": "UAZ rigid tire (preview)",
+  "Type": "Tire",
+  "Template": "RigidTire",
+  "Radius": 0.372,
+  "Width": 0.228,
+  "Mass": 19.8,
+  "Inertia": [1.06, 1.88, 1.06],
+  "Visualization": {
+    "Mesh Filename Left": "uaz/uaz_tire.obj",
+    "Mesh Filename Right": "uaz/uaz_tire.obj"
+  },
+  "Contact Material": {
+    "Coefficient of Friction": 0.9,
+    "Coefficient of Restitution": 0.1,
+    "Properties": {"Young Modulus": 2e7, "Poisson Ratio": 0.3}
+  }
+}
