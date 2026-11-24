@@ -44,23 +44,36 @@
     {
       packages.${system} = { inherit vsgXchange vsgImGui; };
 
-      devShells.${system}.default = pkgs.mkShell {
-        # Build tools.
-        nativeBuildInputs = with pkgs; [
-          cmake
-          ninja
-          pkg-config
-          vulkan-tools # vulkaninfo, for debugging GPU detection
-        ];
-        # Libraries (buildInputs so pkg-config/cmake hooks pick them up).
-        buildInputs = vsgDeps ++ (with pkgs; [
-          eigen
-          vsgXchange
-          vsgImGui
-          assimp
-          freetype
-          libxdmcp
-        ]);
+      devShells.${system} = rec {
+        default = pkgs.mkShell {
+          # Build tools.
+          nativeBuildInputs = with pkgs; [
+            cmake
+            ninja
+            pkg-config
+            vulkan-tools # vulkaninfo, for debugging GPU detection
+          ];
+          # Libraries (buildInputs so pkg-config/cmake hooks pick them up).
+          buildInputs = vsgDeps ++ (with pkgs; [
+            eigen
+            vsgXchange
+            vsgImGui
+            assimp
+            freetype
+            libxdmcp
+          ]);
+        };
+
+        # `nix develop .#cuda`: default shell + CUDA toolkit, for GPU modules (CRM/SPH terrain).
+        # Uses CUDA's backendStdenv so the host compiler is a GCC version nvcc supports.
+        cuda =
+          let
+            cudaPkgs = (import nixpkgs { inherit system; config.allowUnfree = true; }).cudaPackages_12;
+          in
+          (pkgs.mkShell.override { stdenv = cudaPkgs.backendStdenv; }) {
+            inherit (default) buildInputs;
+            nativeBuildInputs = default.nativeBuildInputs ++ [ cudaPkgs.cudatoolkit ];
+          };
       };
     };
 }
