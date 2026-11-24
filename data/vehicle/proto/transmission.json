@@ -1,25 +1,22 @@
 {
-  "Name": "HMMWV Simple Map Transmission",
+  "Name": "proto transmission (low range)",
   "Type": "Transmission",
   "Template": "AutomaticTransmissionSimpleMap",
-
   "Gear Box": {
-    "Reverse Gear Ratio": -0.151,
+    "Reverse Gear Ratio": -0.058076923076923075,
     "Forward Gear Ratios": [
-      0.1708,
-      0.2791,
-      0.4218,
-      0.6223,
-      1.0173,
-      1.5361
+      0.06569230769230769,
+      0.10734615384615386
     ],
     "Shift Points Map RPM": [
-      [ 1000, 2226 ],
-      [ 1000, 2225 ],
-      [ 1000, 2210 ],
-      [ 1000, 2226 ],
-      [ 1000, 2225 ],
-      [ 1000, 2700 ]
+      [
+        1000,
+        2200
+      ],
+      [
+        1000,
+        2200
+      ]
     ]
   }
 }

@@ -73,6 +73,16 @@ DAMPER_KNEE = 0.4                 # wheel speed where damping falls to 40% [m/s]
 DROOP_TRAVEL = (0.12, 0.12)       # wheel travel down from ride height to the droop stop [m]
 BUMP_TRAVEL = (0.15, 0.15)        # wheel travel up from ride height to the bump stop [m]
 
+# Powertrain: the HMMWV simple engine and its first two gears, in low range (crawl speeds).
+# Top speed = governor speed * top gear / low range * conical gear ratio * tire radius (about 3 m/s).
+ENGINE_TORQUE = 330.0             # [N m]
+ENGINE_POWER = 110e3              # [W]
+GOVERNOR_RPM = 3000.0             # no torque above this engine speed
+GEAR_RATIOS = (0.1708, 0.2791)    # transmission output / input speed (HMMWV gears 1 and 2)
+REVERSE_RATIO = -0.151
+LOW_RANGE = 2.6                   # transfer case reduction
+SHIFT_RPM = (1000, 2200)          # downshift, upshift engine speeds
+
 # Steering and driveline
 MAX_STEER_DEG = 30.0
 TORQUE_BIAS = 2.5                 # limited-slip axle differentials (Torsen-like)
@@ -321,6 +331,14 @@ def main():
         "wheel.json": {"Name": "proto wheel", "Type": "Wheel", "Template": "Wheel", "Mass": WHEEL_MASS,
                        "Inertia": [0.3, 0.5, 0.3],
                        "Visualization": {"Radius": TIRE_RADIUS * 0.6, "Width": TIRE_WIDTH * 0.9}},
+        "engine.json": {"Name": "proto engine", "Type": "Engine", "Template": "EngineSimple",
+                        "Maximum Engine Torque": ENGINE_TORQUE, "Maximum Engine Power": ENGINE_POWER,
+                        "Maximum Engine Speed": GOVERNOR_RPM * math.pi / 30},  # Chrono reads rad/s
+        "transmission.json": {"Name": "proto transmission (low range)", "Type": "Transmission",
+                              "Template": "AutomaticTransmissionSimpleMap",
+                              "Gear Box": {"Reverse Gear Ratio": REVERSE_RATIO / LOW_RANGE,
+                                           "Forward Gear Ratios": [g / LOW_RANGE for g in GEAR_RATIOS],
+                                           "Shift Points Map RPM": [list(SHIFT_RPM)] * len(GEAR_RATIOS)}},
         "brake.json": {"Name": "proto brake", "Type": "Brake", "Template": "BrakeSimple",
                        "Maximum Torque": BRAKE_TORQUE},
         "driveline.json": {"Name": "proto limited-slip 4WD", "Type": "Driveline", "Template": "SimpleDriveline",
@@ -342,6 +360,8 @@ def main():
         print(f"{name}: corner mass {corner_mass[axle]:.0f} kg, spring {k / 1e3:.1f} kN/m, "
               f"preload {s['Preload']:.0f} N, ride length {s['Free Length']:.3f} m")
     print(f"tie rod inner {tierod_in}, outer {tierod_out}")
+    w_max = GOVERNOR_RPM * math.pi / 30 * GEAR_RATIOS[-1] / LOW_RANGE * CONICAL_GEAR_RATIO
+    print(f"top speed {w_max * TIRE_RADIUS:.1f} m/s ({w_max * TIRE_RADIUS * 3.6:.0f} km/h)")
 
 
 if __name__ == "__main__":

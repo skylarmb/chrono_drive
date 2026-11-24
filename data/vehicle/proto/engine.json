@@ -1,9 +1,8 @@
 {
-  "Name": "HMMWV Simple Engine",
+  "Name": "proto engine",
   "Type": "Engine",
   "Template": "EngineSimple",
-
-  "Maximum Engine Torque": 330,
-  "Maximum Engine Power": 110000,
-  "Maximum Engine Speed": 10000
+  "Maximum Engine Torque": 330.0,
+  "Maximum Engine Power": 110000.0,
+  "Maximum Engine Speed": 314.1592653589793
 }
