@@ -13,7 +13,7 @@ chrono_drive is a physics-first driving simulator built on Project Chrono. The g
 - The user preferred proto's springs and dampers over Chrono's stock vehicles. The UAZ-452 and the MAN 10t (`PREVIEW=`) felt rigid and bouncy.
 - The user tests feel by driving. Report numbers (logs, sweeps, benchmarks) and screenshots, then let the user drive before you call a change done.
 
-**Not pushed yet:** project commits after `27b9cb4` (`6b0e0fe`..`51fd9f9`) and fork commits `f36cff7`, `6f137a2`. Ask the user before you push.
+**Pushed:** everything up to 2026-11-24 is on GitHub (both repos). Ask the user before the next push.
 
 **Ideas the user agreed to keep for later:**
 - A deformed tire mesh with a flat spot (see "Tires").
