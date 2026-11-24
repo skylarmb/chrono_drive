@@ -42,4 +42,4 @@ After a fresh clone, run `git -C chrono remote add upstream https://github.com/p
 
 ## License
 
-BSD 3-Clause (see `LICENSE`). [Project Chrono](https://github.com/projectchrono/chrono) is also BSD-licensed. `data/maps/terrain3.bmp` comes from Chrono's data directory and is distributed under Chrono's license, copyright (c) 2016, Project Chrono Development Team.
+BSD 3-Clause (see `LICENSE`). [Project Chrono](https://github.com/projectchrono/chrono) is also BSD-licensed. `data/maps/terrain3.bmp` and the HMMWV specs in `data/vehicle/hmmwv/` (with local changes to the suspension) come from Chrono's data directory and are distributed under Chrono's license, copyright (c) 2016, Project Chrono Development Team.
