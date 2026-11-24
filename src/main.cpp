@@ -14,6 +14,7 @@
 
 #include <chrono>
 #include <thread>
+#include <fstream>
 
 #include <unistd.h>
 
@@ -26,11 +27,12 @@
 #include "chrono_vehicle/wheeled_vehicle/ChWheeledVehicleVisualSystemVSG.h"
 #include "chrono_vsg/ChEventHandlerVSG.h"
 
-#include "chrono_models/vehicle/hmmwv/HMMWV.h"
+#include "chrono_vehicle/utils/ChVehicleUtilsJSON.h"
+#include "chrono_vehicle/wheeled_vehicle/vehicle/WheeledVehicle.h"
+#include "chrono_vehicle/wheeled_vehicle/suspension/ChDoubleWishbone.h"
 
 using namespace chrono;
 using namespace chrono::vehicle;
-using namespace chrono::vehicle::hmmwv;
 
 // -----------------------------------------------------------------------------
 // Map settings
@@ -71,7 +73,8 @@ class AppKeys : public vsg3d::ChEventHandlerVSG {
 static bool run() {
     // Point Chrono at its data (vehicle meshes, textures) in the submodule.
     SetChronoDataPath(CHRONO_DATA_DIR);
-    SetVehicleDataPath(CHRONO_DATA_DIR "vehicle/");
+    // Vehicle specs (JSON) are ours to tune: data/vehicle/. Shared meshes there are symlinks into Chrono.
+    SetVehicleDataPath(CHRONO_DRIVE_DATA_DIR "vehicle/");
 
     // Own the system so the terrain exists before the vehicle is placed on it.
     ChSystemSMC sys;
@@ -128,34 +131,35 @@ static bool run() {
     // Vehicle: spawn at the map center, just above the ground
     // -------------------------------------------------------------------------
     // BENCH (temporary): in benchmark mode, spawn 5 m from the -X edge so the run stays on the map.
-    const double spawn_x = envd("BENCH", 0) > 0 ? -map_size / 2 + 5 : 0;
+    const double spawn_x = envd("SPAWNX", envd("BENCH", 0) > 0 ? -map_size / 2 + 5 : 0);
     const double spawn_z = terrain.GetHeight(ChVector3d(spawn_x, 0, 0)) + 0.6;
 
-    HMMWV_Full hmmwv(&sys);
-    hmmwv.SetContactMethod(ChContactMethod::SMC);
-    hmmwv.SetInitPosition(ChCoordsys<>(ChVector3d(spawn_x, 0, spawn_z), QUNIT));
-    hmmwv.SetEngineType(EngineModelType::SIMPLE);
-    hmmwv.SetTransmissionType(TransmissionModelType::AUTOMATIC_SIMPLE_MAP);
-    hmmwv.SetDriveType(DrivelineTypeWV::AWD);
-    hmmwv.SetTireType(TireModelType::RIGID);
-    hmmwv.SetTireStepSize(step_size);
-    hmmwv.Initialize();
+    // HMMWV from JSON: edit data/vehicle/hmmwv/ and press R to restart with the new values.
+    WheeledVehicle vehicle(&sys, GetVehicleDataFile("hmmwv/vehicle/HMMWV_Vehicle.json"));
+    vehicle.Initialize(ChCoordsys<>(ChVector3d(spawn_x, 0, spawn_z), QUNIT));
+    vehicle.SetChassisVisualizationType(VisualizationType::MESH);
+    vehicle.SetSuspensionVisualizationType(VisualizationType::PRIMITIVES);
+    vehicle.SetSteeringVisualizationType(VisualizationType::PRIMITIVES);
+    vehicle.SetWheelVisualizationType(VisualizationType::MESH);
 
-    hmmwv.SetChassisVisualizationType(VisualizationType::MESH);
-    hmmwv.SetSuspensionVisualizationType(VisualizationType::PRIMITIVES);
-    hmmwv.SetSteeringVisualizationType(VisualizationType::PRIMITIVES);
-    hmmwv.SetWheelVisualizationType(VisualizationType::MESH);
-    hmmwv.SetTireVisualizationType(VisualizationType::MESH);
+    auto engine = ReadEngineJSON(GetVehicleDataFile("hmmwv/powertrain/HMMWV_EngineSimple.json"));
+    auto transmission = ReadTransmissionJSON(GetVehicleDataFile("hmmwv/powertrain/HMMWV_AutomaticTransmissionSimpleMap.json"));
+    vehicle.InitializePowertrain(chrono_types::make_shared<ChPowertrainAssembly>(engine, transmission));
+
+    for (auto& axle : vehicle.GetAxles())
+        for (auto& wheel : axle->GetWheels())
+            vehicle.InitializeTire(ReadTireJSON(GetVehicleDataFile("hmmwv/tire/HMMWV_RigidTire.json")), wheel,
+                                   VisualizationType::MESH);
 
     // Only ray-cast SCM nodes near the tires (big speedup on large maps).
-    for (auto& axle : hmmwv.GetVehicle().GetAxles())
+    for (auto& axle : vehicle.GetAxles())
         for (auto& wheel : axle->GetWheels())
             terrain.AddActiveDomain(wheel->GetSpindle(), VNULL, ChVector3d(1.0, 0.6, 1.0));
 
     // -------------------------------------------------------------------------
     // Driver + visualization
     // -------------------------------------------------------------------------
-    ChInteractiveDriver driver(hmmwv.GetVehicle());
+    ChInteractiveDriver driver(vehicle);
     driver.SetKeyboardMode(ChInteractiveDriver::KeyboardMode::HELD);
     driver.Initialize();
 
@@ -163,7 +167,7 @@ static bool run() {
     vis->SetWindowTitle("chrono_drive");
     vis->SetWindowSize(1600, 900);
     vis->SetChaseCamera(ChVector3d(0, 0, 1.75), 8.0, 1.0);
-    vis->AttachVehicle(&hmmwv.GetVehicle());
+    vis->AttachVehicle(&vehicle);
     vis->AttachDriver(&driver);
     vis->AttachTerrain(&terrain);
     vis->SetLightDirection(1.5 * CH_PI_2, CH_PI_4);
@@ -197,7 +201,7 @@ static bool run() {
             double w = t_wall.GetTimeSeconds();
             printf("MAP=%g GRID=%g THR=%g RENDER=%d | v=%.2f RTF=%.2f | wall=%.2f render=%.2f step=%.2f "
                    "(coll=%.2f solve=%.2f) other=%.2f\n",
-                   map_size, grid_delta, envd("THR", 8), bench_render, hmmwv.GetVehicle().GetSpeed(), time / w, w,
+                   map_size, grid_delta, envd("THR", 8), bench_render, vehicle.GetSpeed(), time / w, w,
                    t_render.GetTimeSeconds(), t_step.GetTimeSeconds(), coll, solve,
                    w - t_render.GetTimeSeconds() - t_step.GetTimeSeconds());
             // SHOT=<file.png>: capture one final frame for visual checks.
@@ -232,17 +236,17 @@ static bool run() {
 
         DriverInputs inputs = driver.GetInputs();
         if (bench_t > 0) {
-            inputs.m_throttle = 1;
+            inputs.m_throttle = envd("THROTTLE", 1);
             inputs.m_braking = 0;
         }
         driver.Synchronize(time);
         terrain.Synchronize(time);
-        hmmwv.Synchronize(time, inputs, terrain);
+        vehicle.Synchronize(time, inputs, terrain);
         vis->Synchronize(time, inputs);
 
         driver.Advance(step_size);
         terrain.Advance(step_size);
-        hmmwv.Advance(step_size);
+        vehicle.Advance(step_size);
         vis->Advance(step_size);
         // We own the system (not the vehicle), so the vehicle's Advance() does not step physics.
         t_step.start();
@@ -251,6 +255,16 @@ static bool run() {
         coll += sys.GetTimerCollision();
         solve += sys.GetTimerLSsolve() + sys.GetTimerLSsetup();
 
+        // LOG (temporary): ride data for suspension tuning, every 5 steps.
+        static std::ofstream log_file(getenv("LOG") ? getenv("LOG") : "");
+        if (log_file.is_open() && step % 5 == 0) {
+            auto& ch = vehicle.GetChassis()->GetBody()->GetFrameRefToAbs();
+            auto susp = [&](int a) { return std::static_pointer_cast<ChDoubleWishbone>(vehicle.GetSuspension(a)); };
+            log_file << time << "," << vehicle.GetPos().x() << "," << ch.GetPos().z() << "," << ch.GetRot().GetCardanAnglesXYZ().y()
+                     << "," << ch.GetRot().GetCardanAnglesXYZ().x() << "," << susp(0)->GetSpringLength(LEFT) << ","
+                     << susp(0)->GetSpringLength(RIGHT) << "," << susp(1)->GetSpringLength(LEFT) << ","
+                     << susp(1)->GetSpringLength(RIGHT) << "\n";
+        }
         step++;
     }
 
