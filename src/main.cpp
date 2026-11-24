@@ -7,11 +7,15 @@
 //   A / D        steer left / right
 //   Z            toggle forward / reverse;  X  neutral
 //   1..5         camera mode: chase, follow, track, inside, free
+//   6            side view of the test track (the start view)
+//   R            restart: fresh map and vehicle, same model
 //   Arrow keys   orbit (left/right) and zoom (up/down) the camera
 //   PgUp / PgDn  raise / lower the camera
 
 #include <chrono>
 #include <thread>
+
+#include <unistd.h>
 
 #include "chrono/physics/ChBodyEasy.h"
 #include "chrono/physics/ChSystemSMC.h"
@@ -20,6 +24,7 @@
 #include "chrono_vehicle/driver/ChInteractiveDriver.h"
 #include "chrono_vehicle/terrain/SCMTerrain.h"
 #include "chrono_vehicle/wheeled_vehicle/ChWheeledVehicleVisualSystemVSG.h"
+#include "chrono_vsg/ChEventHandlerVSG.h"
 
 #include "chrono_models/vehicle/hmmwv/HMMWV.h"
 
@@ -43,7 +48,27 @@ const double grid_delta = envd("GRID", 0.1);   // SCM grid spacing [m]; smaller 
 // Physics step [s]. SMC contact with SCM is stable at 2 ms.
 const double step_size = 2e-3;
 
-int main() {
+// Fixed camera beside the bumps. The chase camera stays here and turns to follow the vehicle.
+const ChVector3d side_camera(17, -14, 2.5);
+
+// Keys that the vehicle viewer does not handle.
+class AppKeys : public vsg3d::ChEventHandlerVSG {
+  public:
+    AppKeys(ChWheeledVehicleVisualSystemVSG& vis, bool& restart) : vis(vis), restart(restart) {}
+    void process(vsg::KeyPressEvent& ev) override {
+        if (ev.keyBase == vsg::KEY_6)
+            vis.GetChaseCamera().SetCameraPos(side_camera);
+        if (ev.keyBase == vsg::KEY_r)
+            restart = true;
+    }
+
+  private:
+    ChWheeledVehicleVisualSystemVSG& vis;
+    bool& restart;
+};
+
+// Build and run one simulation. Returns true if the user asked for a restart.
+static bool run() {
     // Point Chrono at its data (vehicle meshes, textures) in the submodule.
     SetChronoDataPath(CHRONO_DATA_DIR);
     SetVehicleDataPath(CHRONO_DATA_DIR "vehicle/");
@@ -88,11 +113,11 @@ int main() {
         sys.Add(bump);
     };
     // Single full-width bump: both wheels of an axle hit it together (heave and pitch).
-    add_bump(10, 0, 3.0, 0.3, 0.12);
+    add_bump(10, 0, 3.75, 0.375, 0.15);
     // Staggered bumps one wheelbase apart (HMMWV: 3.3 m): the front right and rear left wheels
     // are on bumps at the same time, which twists the chassis (cross-axle articulation).
-    add_bump(20.0, 0.9, 1.0, 0.3, 0.12);   // left wheels
-    add_bump(23.3, -0.9, 1.0, 0.3, 0.12);  // right wheels
+    add_bump(20.0, 0.9, 1.25, 0.375, 0.15);   // left wheels
+    add_bump(23.3, -0.9, 1.25, 0.375, 0.15);  // right wheels
 
     // -------------------------------------------------------------------------
     // Vehicle: spawn at the map center, just above the ground
@@ -139,7 +164,10 @@ int main() {
     vis->SetLightDirection(1.5 * CH_PI_2, CH_PI_4);
     vis->EnableShadows();
     vis->EnableSkyTexture(SkyMode::DOME);
+    bool restart = false;
+    vis->AddEventHandler(chrono_types::make_shared<AppKeys>(*vis, restart));
     vis->Initialize();
+    vis->GetChaseCamera().SetCameraPos(side_camera);
 
     // -------------------------------------------------------------------------
     // Loop: step physics, render at ~60 fps, cap to real time
@@ -156,7 +184,7 @@ int main() {
     double coll = 0, solve = 0;
     t_wall.start();
 
-    while (vis->Run()) {
+    while (vis->Run() && !restart) {
         double time = sys.GetChTime();
 
         if (bench_t > 0 && time >= bench_t) {
@@ -221,5 +249,13 @@ int main() {
         step++;
     }
 
+    return restart;
+}
+
+int main(int argc, char** argv) {
+    // Restart by re-running this executable, so every Chrono object starts fresh.
+    // run() returns first, which closes the window.
+    if (run())
+        execv("/proc/self/exe", argv);
     return 0;
 }
