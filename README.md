@@ -39,3 +39,7 @@ git -C chrono push --force-with-lease
 ```
 
 After a fresh clone, run `git -C chrono remote add upstream https://github.com/projectchrono/chrono.git`.
+
+## License
+
+BSD 3-Clause (see `LICENSE`). [Project Chrono](https://github.com/projectchrono/chrono) is also BSD-licensed. `data/maps/terrain3.bmp` comes from Chrono's data directory and is distributed under Chrono's license, copyright (c) 2016, Project Chrono Development Team.
