@@ -9,6 +9,7 @@
 //   1..5         camera mode: chase, follow, track, inside, free
 //   6            side view of the test track (the start view)
 //   R            restart: fresh map and vehicle, same model
+//   Esc          quit
 //   Arrow keys   orbit (left/right) and zoom (up/down) the camera
 //   PgUp / PgDn  raise / lower the camera
 
@@ -186,7 +187,9 @@ static bool run() {
 
     auto vis = chrono_types::make_shared<ChWheeledVehicleVisualSystemVSG>();
     vis->SetWindowTitle("chrono_drive");
+    // Fullscreen when playing (Esc quits). Benchmark and screenshot runs use a small window.
     vis->SetWindowSize(1600, 900);
+    vis->EnableFullscreen(envd("BENCH", 0) == 0);
     vis->SetChaseCamera(ChVector3d(0, 0, 1.75), 8.0, 1.0);
     vis->AttachVehicle(&vehicle);
     vis->AttachDriver(&driver);
