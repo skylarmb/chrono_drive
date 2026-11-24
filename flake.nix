@@ -73,6 +73,10 @@
           (pkgs.mkShell.override { stdenv = cudaPkgs.backendStdenv; }) {
             inherit (default) buildInputs;
             nativeBuildInputs = default.nativeBuildInputs ++ [ cudaPkgs.cudatoolkit ];
+            # Binaries link against the toolkit's stub libcuda; load the real NixOS driver instead.
+            shellHook = ''
+              export LD_LIBRARY_PATH=/run/opengl-driver/lib''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
+            '';
           };
       };
     };
