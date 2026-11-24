@@ -5,3 +5,6 @@ result*
 # direnv cache
 .direnv/
 build-crm/
+chrono-base/
+build-chrono-base/
+build-base/

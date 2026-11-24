@@ -68,15 +68,18 @@ int main() {
                               3e4);  // damping [Pa s/m]
     terrain.Initialize(heightmap, map_size, map_size, min_height, max_height, grid_delta);
     terrain.SetPlotType(SCMTerrain::PLOT_SINKAGE, 0, 0.1);  // false-color ruts by depth
+    terrain.GetMesh()->SetWireframe(envd("WIRE", 1) != 0);  // BENCH (temporary): WIRE=0 renders solid
 
     // -------------------------------------------------------------------------
     // Vehicle: spawn at the map center, just above the ground
     // -------------------------------------------------------------------------
-    const double spawn_z = terrain.GetHeight(ChVector3d(0, 0, 0)) + 0.6;
+    // BENCH (temporary): in benchmark mode, spawn 5 m from the -X edge so the run stays on the map.
+    const double spawn_x = envd("BENCH", 0) > 0 ? -map_size / 2 + 5 : 0;
+    const double spawn_z = terrain.GetHeight(ChVector3d(spawn_x, 0, 0)) + 0.6;
 
     HMMWV_Full hmmwv(&sys);
     hmmwv.SetContactMethod(ChContactMethod::SMC);
-    hmmwv.SetInitPosition(ChCoordsys<>(ChVector3d(0, 0, spawn_z), QUNIT));
+    hmmwv.SetInitPosition(ChCoordsys<>(ChVector3d(spawn_x, 0, spawn_z), QUNIT));
     hmmwv.SetEngineType(EngineModelType::SIMPLE);
     hmmwv.SetTransmissionType(TransmissionModelType::AUTOMATIC_SIMPLE_MAP);
     hmmwv.SetDriveType(DrivelineTypeWV::AWD);
@@ -140,6 +143,15 @@ int main() {
                    map_size, grid_delta, envd("THR", 8), bench_render, hmmwv.GetVehicle().GetSpeed(), time / w, w,
                    t_render.GetTimeSeconds(), t_step.GetTimeSeconds(), coll, solve,
                    w - t_render.GetTimeSeconds() - t_step.GetTimeSeconds());
+            // SHOT=<file.png>: capture one final frame for visual checks.
+            if (const char* shot = getenv("SHOT")) {
+                vis->WriteImageToFile(shot);
+                std::this_thread::sleep_for(std::chrono::milliseconds(100));  // Render() skips frames above its fps cap
+                vis->Run();
+                vis->BeginScene();
+                vis->Render();
+                vis->EndScene();
+            }
             break;
         }
 

@@ -49,8 +49,8 @@ nix develop -c ./build/chrono_drive
 - **Rendering limits frame time.** Physics does not. Physics runs at 4x to 9x real time up to a 0.025 m grid.
 - **SCM physics cost does not change with map size.** Active domains limit ray casts to the area around the tires.
 - **More threads do not help.** One thread is as fast as eight, and sixteen is slower.
-- **The cause is in `ChVisualSystemVSG::Update()`** (`chrono_vsg/ChVisualSystemVSG.cpp`, near line 1150). Each frame, it converts and marks dirty the full vertex, normal, and color arrays of every mutable mesh. The arrays use the mesh-soup layout (three vertices per triangle). `GetFaceVertices()` also builds a new full array each call.
-- **SCM already reports changed vertices.** It calls `SetModifiedVertices()` on its shape (`SCMTerrain.cpp`, near line 2075). The old Irrlicht layer used that list. The VSG layer ignores it.
+- **The cause was full re-upload of mutable meshes.** Unpatched `ChVisualSystemVSG::Update()` rewrote and marked dirty the full vertex, normal, and color arrays of every mutable mesh each frame. VSG 1.1.16 has no partial buffer upload.
+- **Fix (fork commit `831aef9`): tiled mutable meshes.** `ChVisualSystemVSG` splits each mutable triangle mesh into tiles of 16384 triangles. `ChVisualShapeTriangleMesh` accumulates modified vertices (`AddModifiedVertices`). SCM adds to that list. The VSG layer rewrites only the tiles that hold modified vertices, then clears the list. A shape without a modified list rewrites all tiles.
 - **A coarse grid changes the physics.** At 0.4 m, the HMMWV reaches 1.4 m/s at full throttle. At 0.1 m, it reaches 8.5 m/s. Do not use a coarse grid as a performance fix.
 - **CRM (SPH sand) is GPU-bound.** It is about 10x slower than real time on a 20 m x 3 m strip. It is not a candidate for real-time play.
 
@@ -61,5 +61,11 @@ nix develop -c ./build/chrono_drive
 ```sh
 nix develop -c sh -c 'BENCH=10 GRID=0.05 ./build/chrono_drive'
 ```
+
+Results with BENCH=8 (RTF, unpatched -> tiled): 60/0.1: 4.20 -> 6.84. 60/0.05: 0.90 -> 3.53. 120/0.1: 1.63 -> 5.73. 240/0.1: 0.44 -> 1.77. 60/0.025: 0.11 -> 0.64. The end speeds are identical, so the physics did not change.
+
+Other overrides: `WIRE=0` renders solid terrain. `SHOT=<file.png>` writes the last frame (it needs `vis->Run()` and a short sleep first, because `Render()` skips frames above its fps cap).
+
+For an unpatched comparison, use `git -C chrono worktree add --detach ../chrono-base <commit>`, build it into `build-chrono-base`, then configure the app with `-DChrono_DIR=$PWD/build-chrono-base/cmake` into `build-base`. These directories are gitignored.
 
 Remove this code after the SCM render work is complete.
