@@ -4,7 +4,35 @@ Notes for agents that work on chrono_drive. `README.md` holds the user-facing bu
 
 ## Project
 
-chrono_drive is a physics-first driving simulator built on Project Chrono. The goal is a base for a game: a drivable vehicle on deformable terrain. The current state is a simple test vehicle (box frame, double wishbones) on a heightmap SCM terrain patch with test bumps. It has keyboard driving, a side camera, and a restart key.
+chrono_drive is a physics-first driving simulator built on Project Chrono. The goal is a base for a game in the style of Mudrunner: trucks that crawl through mud and over obstacles. The current state is a generated test vehicle ("proto": box frame, double-wishbone front, solid rear axle, compliant tires, low-range crawl gearing) on an SCM soil map with a test course. It has keyboard driving, chase, 3/4 and side cameras, a restart key, and fullscreen.
+
+## Status and next steps (2026-11-24)
+
+**Direction (from the user):**
+- Suspension physics comes first. The base is the proto vehicle from `tools/gen_vehicle.py`. Body and frame looks come later, adapted onto this suspension.
+- The user preferred proto's springs and dampers over Chrono's stock vehicles. The UAZ-452 and the MAN 10t (`PREVIEW=`) felt rigid and bouncy.
+- The user tests feel by driving. Report numbers (logs, sweeps, benchmarks) and screenshots, then let the user drive before you call a change done.
+
+**Not pushed yet:** project commits after `27b9cb4` (`6b0e0fe`..`51fd9f9`) and fork commits `f36cff7`, `6f137a2`. Ask the user before you push.
+
+**Ideas the user agreed to keep for later:**
+- A deformed tire mesh with a flat spot (see "Tires").
+- Airing down at runtime: lower the tire stiffness (and show a larger flat spot).
+- Lugged tires (a tread mesh) for traction in soil.
+- A solid front axle. Chrono's "ToeBar" templates need `PitmanArm` or `RotaryArm` steering, not `RackPinion`.
+- A map and course in a JSON file, instead of code in `main.cpp`.
+
+**Open questions (not confirmed):**
+- Torque lift on the solid axle: does `ChSimpleDriveline` torque react on the axle tube? Probably not.
+- Once, after the spawn drop, the engine read 3769 rpm (governor 3000) at zero torque. This is probably a coast after the drop. Check it if the engine feels wrong.
+- There is no anti-roll bar. Body roll comes from the springs only.
+
+**Cleanup to do:**
+- Remove the temporary environment code in `main.cpp` (`BENCH`, `LOG`, `SHOT`, `PREVIEW`, and the others in "Benchmark mode") when the user agrees.
+- `data/maps/terrain3.bmp` is no longer used. Ask the user before you delete it.
+- The baseline worktree `chrono-base/` and the builds `build-chrono-base/`, `build-base/`, `build-crm/` are only for comparisons. Remove them (`git -C chrono worktree remove ../chrono-base`) when they are no longer needed.
+
+**Candidates to send upstream to Project Chrono:** the VSG tiled mutable meshes (`831aef9`) and the two `ChSimpleDriveline` fixes. Clean up their style first: only the architecture must be upstreamable.
 
 ## Layout
 
