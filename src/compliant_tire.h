@@ -64,4 +64,5 @@ class CompliantTire : public chrono::vehicle::ChTire {
     std::shared_ptr<chrono::ChBody> m_body;               // the tire
     std::shared_ptr<chrono::ChLinkLockOldham> m_joint;    // in-plane slide, no relative rotation
     unsigned int m_acc_tire = 0, m_acc_spindle = 0;       // force accumulators for the sidewall force
+    std::shared_ptr<chrono::ChVisualShape> m_vis_shape;   // drawn on the hub
 };

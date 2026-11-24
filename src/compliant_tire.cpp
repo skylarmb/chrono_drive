@@ -135,12 +135,14 @@ void CompliantTire::UpdateInertiaProperties() {
 void CompliantTire::AddVisualizationAssets(VisualizationType vis) {
     if (vis == VisualizationType::NONE)
         return;
-    auto cyl = chrono_types::make_shared<ChVisualShapeCylinder>(m_params.radius, m_params.width);
-    cyl->SetColor(ChColor(0.15f, 0.15f, 0.15f));
-    m_body->AddVisualShape(cyl, ChFrame<>(VNULL, QuatFromAngleX(CH_PI_2)));
+    // Draw the tire on the hub, not on the tire body: it stays centered on the rim. The drawn tire overlaps
+    // the ground by the deflection (AGENTS.md: a deformed mesh would show the flat spot instead).
+    m_vis_shape = chrono_types::make_shared<ChVisualShapeCylinder>(m_params.radius, m_params.width);
+    m_vis_shape->SetColor(ChColor(0.15f, 0.15f, 0.15f));
+    m_wheel->GetSpindle()->AddVisualShape(m_vis_shape, ChFrame<>(ChVector3d(0, GetOffset(), 0), QuatFromAngleX(CH_PI_2)));
 }
 
 void CompliantTire::RemoveVisualizationAssets() {
-    if (m_body && m_body->GetVisualModel())
-        m_body->GetVisualModel()->Clear();
+    // Remove only this shape: the wheel adds its own shapes to the same spindle body.
+    ChPart::RemoveVisualizationAsset(m_wheel->GetSpindle(), m_vis_shape);
 }
