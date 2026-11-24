@@ -29,7 +29,6 @@
 
 #include "chrono_vehicle/utils/ChVehicleUtilsJSON.h"
 #include "chrono_vehicle/wheeled_vehicle/vehicle/WheeledVehicle.h"
-#include "chrono_vehicle/wheeled_vehicle/suspension/ChDoubleWishbone.h"
 
 using namespace chrono;
 using namespace chrono::vehicle;
@@ -279,13 +278,13 @@ static bool run() {
 
         // LOG (temporary): ride data for suspension tuning, every 5 steps.
         static std::ofstream log_file(getenv("LOG") ? getenv("LOG") : "");
-        if (log_file.is_open() && preview.empty() && step % 5 == 0) {  // proto only (double wishbones)
+        if (log_file.is_open() && preview.empty() && step % 5 == 0) {  // proto only
             auto& ch = vehicle.GetChassis()->GetBody()->GetFrameRefToAbs();
-            auto susp = [&](int a) { return std::static_pointer_cast<ChDoubleWishbone>(vehicle.GetSuspension(a)); };
+            // Spring length of any suspension type (the spring is the first reported force element).
+            auto spring = [&](int a, VehicleSide side) { return vehicle.GetSuspension(a)->ReportSuspensionForce(side)[0].length; };
             log_file << time << "," << vehicle.GetPos().x() << "," << ch.GetPos().z() << "," << ch.GetRot().GetCardanAnglesXYZ().y()
-                     << "," << ch.GetRot().GetCardanAnglesXYZ().x() << "," << susp(0)->GetSpringLength(LEFT) << ","
-                     << susp(0)->GetSpringLength(RIGHT) << "," << susp(1)->GetSpringLength(LEFT) << ","
-                     << susp(1)->GetSpringLength(RIGHT);
+                     << "," << ch.GetRot().GetCardanAnglesXYZ().x() << "," << spring(0, LEFT) << ","
+                     << spring(0, RIGHT) << "," << spring(1, LEFT) << "," << spring(1, RIGHT);
             // Front wheel steer angles relative to the chassis (spindle axis in the chassis frame)
             for (auto side : {LEFT, RIGHT}) {
                 auto ax = ch.GetRot().RotateBack(vehicle.GetSpindleRot(0, side).GetAxisY());

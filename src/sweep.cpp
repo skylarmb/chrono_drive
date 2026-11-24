@@ -1,9 +1,11 @@
 // suspension_sweep: kinematic check of the proto vehicle (data/vehicle/proto/).
 //
 // A Chrono test rig holds the chassis fixed and moves a platform under each tire.
-// The platforms move slowly through bump and droop, then the steering turns to full lock.
+// The platforms move slowly through bump and droop with both wheels together (heave), then with the
+// wheels in opposite directions (articulation), then the steering turns to full lock.
 // The output is the steer (toe) and camber angle of the left wheels against wheel travel.
-// Good geometry has a small toe change over the full travel.
+// Good geometry has a small toe change over the full travel. On a solid axle, toe change in
+// articulation is roll steer.
 
 #include <algorithm>
 #include <cmath>
@@ -19,18 +21,22 @@ using namespace chrono;
 using namespace chrono::vehicle;
 
 // Phase lengths [s]: settle, travel sweep (up to bump, down to droop, back to ride), steering sweep.
+// The travel sweep runs twice: heave, then articulation.
 const double t_settle = 1.0, t_travel = 8.0, t_steer = 2.0;
+const double t_heave_end = t_settle + t_travel, t_artic_end = t_heave_end + t_travel;
 
 // Post inputs in [-1, 1], scaled by the rig displacement limit. Triangle wave: 0 -> +1 -> -1 -> 0.
 class SweepDriver : public ChSuspensionTestRigDriver {
     void Synchronize(double time) override {
         ChSuspensionTestRigDriver::Synchronize(time);
-        double u = std::clamp((time - t_settle) / t_travel, 0.0, 1.0);
-        double d = u < 0.25 ? 4 * u : (u < 0.75 ? 2 - 4 * u : 4 * u - 4);
-        for (int a = 0; a < m_naxles; a++)
-            m_displLeft[a] = m_displRight[a] = d;
-        double s = std::clamp((time - t_settle - t_travel) / t_steer, 0.0, 1.0);
-        m_steering = s;
+        bool artic = time >= t_heave_end;
+        double u = std::fmod(std::max(time - t_settle, 0.0), t_travel) / t_travel;
+        double d = time >= t_artic_end ? 0 : (u < 0.25 ? 4 * u : (u < 0.75 ? 2 - 4 * u : 4 * u - 4));
+        for (int a = 0; a < m_naxles; a++) {
+            m_displLeft[a] = d;
+            m_displRight[a] = artic ? -d : d;
+        }
+        m_steering = std::clamp((time - t_artic_end) / t_steer, 0.0, 1.0);
     }
 };
 
@@ -60,21 +66,25 @@ int main() {
     rig->Initialize();
     rig->GetVehicle().GetSystem()->SetSolverType(ChSolver::Type::SPARSE_LU);
 
-    // Travel sweep: one row per cm of travel (first pass through each value only).
-    std::map<int, std::pair<double, double>> rows[2];  // per axle: travel [cm] -> (steer, camber)
+    // Travel sweeps: one row per cm of left wheel travel (first pass through each value only).
+    // Per axle: travel [cm] -> steer and camber in heave, then in articulation.
+    struct Row {
+        double steer[2] = {NAN, NAN}, camber[2] = {NAN, NAN};
+    };
+    std::map<int, Row> rows[2];
     const double step = 1e-3;
     double steer_left = 0, steer_right = 0;
-    while (rig->GetVehicle().GetSystem()->GetChTime() < t_settle + t_travel + t_steer) {
+    while (rig->GetVehicle().GetSystem()->GetChTime() < t_artic_end + t_steer) {
         double t = rig->GetVehicle().GetSystem()->GetChTime();
         rig->Advance(step);
         if (t < t_settle)
             continue;
-        if (t < t_settle + t_travel) {
+        if (t < t_artic_end) {
+            int mode = t < t_heave_end ? 0 : 1;
             for (int a = 0; a < 2; a++) {
-                double steer, camber;
-                Angles(rig->GetSpindleRot(a, LEFT), LEFT, steer, camber);
-                int cm = (int)std::lround(rig->GetWheelTravel(a, LEFT) * 100);
-                rows[a].try_emplace(cm, steer, camber);
+                Row& r = rows[a][(int)std::lround(rig->GetWheelTravel(a, LEFT) * 100)];
+                if (std::isnan(r.steer[mode]))
+                    Angles(rig->GetSpindleRot(a, LEFT), LEFT, r.steer[mode], r.camber[mode]);
             }
         } else {
             double c;
@@ -84,14 +94,19 @@ int main() {
     }
 
     for (int a = 0; a < 2; a++) {
-        printf("%s left wheel (travel: + is bump)\n  travel[cm]  steer[deg]  camber[deg]\n", a == 0 ? "FRONT" : "REAR");
-        double smin = 1e9, smax = -1e9;
+        printf("%s left wheel (travel: + is bump) [deg]\n  travel[cm]  heave: steer  camber   articulation: steer  camber\n",
+               a == 0 ? "FRONT" : "REAR");
+        double range[2][2] = {{1e9, -1e9}, {1e9, -1e9}};  // per mode: min, max steer
         for (auto& [cm, r] : rows[a]) {
-            printf("  %9d  %10.3f  %11.3f\n", cm, r.first, r.second);
-            smin = std::min(smin, r.first);
-            smax = std::max(smax, r.first);
+            printf("  %9d  %12.3f %7.3f  %19.3f %7.3f\n", cm, r.steer[0], r.camber[0], r.steer[1], r.camber[1]);
+            for (int m = 0; m < 2; m++)
+                if (!std::isnan(r.steer[m])) {
+                    range[m][0] = std::min(range[m][0], r.steer[m]);
+                    range[m][1] = std::max(range[m][1], r.steer[m]);
+                }
         }
-        printf("  toe change over travel: %.3f deg\n\n", smax - smin);
+        printf("  toe change: heave %.3f deg, articulation %.3f deg\n\n", range[0][1] - range[0][0],
+               range[1][1] - range[1][0]);
     }
     printf("full left lock: left wheel %.1f deg, right wheel %.1f deg\n", steer_left, steer_right);
     return 0;

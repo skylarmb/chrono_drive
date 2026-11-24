@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate the "proto" test vehicle: a box frame on four double-wishbone corners.
+"""Generate the "proto" test vehicle: a box frame, a double-wishbone front, and a solid or wishbone rear.
 
 Edit the parameters below, run this script, then press R in chrono_drive.
 The script writes Chrono::Vehicle JSON files to data/vehicle/proto/.
@@ -8,7 +8,7 @@ Frames (Chrono::Vehicle): X forward, Y left, Z up. Each suspension frame has its
 origin at the wheel center at ride height. The script gives left-side points.
 Chrono mirrors them to the right side.
 
-Geometry rules:
+Geometry rules (double wishbone):
 - Both control arms are horizontal at ride height. The upper arm is shorter,
   so the wheel gains negative camber in bump.
 - The tie rod forms a third arm. Its inner point lies on the line through the
@@ -51,6 +51,19 @@ STEERING_ARM = 0.15               # tie rod outer point behind the kingpin
 TIEROD_HEIGHT = 0.0
 SPRING_ON_ARM = 0.65              # coilover mount, fraction of lower arm from inner pivot
 SPRING_TOP = (0.05, 0.35)         # coilover top: (inboard of the bottom mount, height)
+
+# Rear suspension type: "solid" (three-link coilover axle) or "wishbone" (same as the front)
+REAR_SUSPENSION = "solid"
+
+# Solid axle geometry (relative to the axle center at ride height; links point forward) [m]
+AXLE_TUBE_MASS = 120.0            # tube, differential, and brakes [kg]
+TRIANGLE_APEX_HEIGHT = 0.20       # ball joint on top of the differential; sets the roll center
+TRIANGLE_CHASSIS = (0.60, 0.40)   # chassis pivots: (ahead of the axle, half spacing)
+LOWER_LINK_AXLE = (0.55, -0.15)   # lower link axle mounts: (half spacing, height)
+LOWER_LINK_LENGTH = 0.70          # lower link chassis mounts are this far ahead, at the same height
+COIL_AXLE = (0.62, -0.05)         # coilover axle mount: (half spacing, height)
+COIL_TOP_HEIGHT = 0.45            # coilover chassis mount height (vertical coilover)
+TRIANGLE_MASS, LOWER_LINK_MASS = 10.0, 6.0
 
 # Ride (per axle: front, rear)
 RIDE_FREQ = (1.3, 1.5)            # [Hz]
@@ -106,8 +119,12 @@ def rod_inertia(m, length):
     return [i, 1e-3 + m * 1e-3, i]
 
 
-def corner(axle):
-    """Suspension JSON for axle 0 (front) or 1 (rear)."""
+def ride_elements(axle, motion_ratio):
+    """Spring and damper for axle 0 (front) or 1 (rear), from the ride targets.
+
+    motion_ratio is the spring travel per unit of wheel travel.
+    Returns (preload, spring curve, damper curve).
+    """
     m = corner_mass[axle]
     k_wheel = (2 * math.pi * RIDE_FREQ[axle]) ** 2 * m
     k_spring = k_wheel / motion_ratio**2
@@ -135,7 +152,12 @@ def corner(axle):
     vels = [-2.0, -v_knee, 0.0, v_knee, 2.0]
     damper_curve = [[v, round(damper(DAMPING_REBOUND[axle] if v > 0 else DAMPING_COMPRESSION[axle], v), 1)]
                     for v in vels]
+    return preload, spring_curve, damper_curve
 
+
+def wishbone(axle):
+    """Double wishbone suspension JSON for axle 0 (front) or 1 (rear)."""
+    preload, spring_curve, damper_curve = ride_elements(axle, motion_ratio)
     upright_com = [0.0, (y_lbj + y_ubj) / 2, (z_lbj + z_ubj) / 2]
     return {
         "Name": "proto " + ("front" if axle == 0 else "rear") + " double wishbone",
@@ -164,6 +186,43 @@ def corner(axle):
                    "Free Length": spring_len, "Preload": preload, "Spring Curve Data": spring_curve},
         "Shock": {"Location Chassis": spring_top, "Location Arm": spring_bot,
                   "Damping Curve Data": damper_curve},
+        "Axle": {"Inertia": 0.4},
+    }
+
+
+def solid_axle(axle):
+    """Three-link solid axle JSON (Chrono SolidThreeLinkAxle) with vertical coilovers.
+
+    A triangular link (A-arm) from the chassis to a ball joint on top of the axle center
+    locates the axle sideways and fore-aft. Two lower links take the drive and brake torque.
+    The axle can heave and roll (articulate). All links are horizontal at ride height.
+    """
+    coil_bot = [0.0, COIL_AXLE[0], COIL_AXLE[1]]
+    coil_top = [0.0, COIL_AXLE[0], COIL_TOP_HEIGHT]
+    # A vertical coilover on the axle moves one-to-one with its wheel in heave.
+    preload, spring_curve, damper_curve = ride_elements(axle, 1.0)
+    tube_len = 2 * Y_WHEEL
+    return {
+        "Name": "proto " + ("front" if axle == 0 else "rear") + " solid axle",
+        "Type": "Suspension",
+        "Template": "SolidThreeLinkAxle",
+        "Camber Angle (deg)": 0,
+        "Toe Angle (deg)": 0,
+        "Spindle": {"Mass": SPINDLE_MASS, "COM": [0, Y_WHEEL, 0], "Inertia": [0.04, 0.07, 0.04],
+                    "Radius": 0.1, "Width": 0.06},
+        "Axle Tube": {"Mass": AXLE_TUBE_MASS, "COM": [0, 0, 0],
+                      "Inertia": [AXLE_TUBE_MASS * tube_len**2 / 12, 0.5, AXLE_TUBE_MASS * tube_len**2 / 12],
+                      "Radius": 0.05},
+        "Triangular Link": {"Mass": TRIANGLE_MASS, "Inertia": [0.3, 0.3, 0.5],
+                            "Location Chassis": [TRIANGLE_CHASSIS[0], TRIANGLE_CHASSIS[1], TRIANGLE_APEX_HEIGHT],
+                            "Location Axle": [0, 0, TRIANGLE_APEX_HEIGHT]},
+        "Longitudinal Link": {"Mass": LOWER_LINK_MASS, "Inertia": rod_inertia(LOWER_LINK_MASS, LOWER_LINK_LENGTH),
+                              "Location Chassis": [LOWER_LINK_LENGTH, LOWER_LINK_AXLE[0], LOWER_LINK_AXLE[1]],
+                              "Location Axle": [0, LOWER_LINK_AXLE[0], LOWER_LINK_AXLE[1]]},
+        "Spring": {"Location Chassis": coil_top, "Location Axle": coil_bot,
+                   "Free Length": COIL_TOP_HEIGHT - COIL_AXLE[1], "Preload": preload,
+                   "Spring Curve Data": spring_curve},
+        "Shock": {"Location Chassis": coil_top, "Location Axle": coil_bot, "Damping Curve Data": damper_curve},
         "Axle": {"Inertia": 0.4},
     }
 
@@ -255,8 +314,8 @@ def main():
     files = {
         "vehicle.json": vehicle(),
         "chassis.json": chassis(),
-        "suspension_front.json": corner(0),
-        "suspension_rear.json": corner(1),
+        "suspension_front.json": wishbone(0),
+        "suspension_rear.json": solid_axle(1) if REAR_SUSPENSION == "solid" else wishbone(1),
         "steering.json": steering(),
         "tire.json": tire(),
         "wheel.json": {"Name": "proto wheel", "Type": "Wheel", "Template": "Wheel", "Mass": WHEEL_MASS,

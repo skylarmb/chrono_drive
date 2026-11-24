@@ -52,15 +52,17 @@ nix develop -c ./build/chrono_drive
 
 ## Test vehicle (proto)
 
-`tools/gen_vehicle.py` writes the "proto" vehicle to `data/vehicle/proto/`. Proto has a box frame with ballast mass, four double-wishbone corners, rack-and-pinion steering, and limited-slip 4WD. The parameters (mass, geometry, ride frequency, damping ratios, travel) are at the top of the script. To change the vehicle, edit the script, run it, then press R in the app. Do not edit the generated JSON by hand. `engine.json` and `transmission.json` are copies of Chrono's HMMWV powertrain, and the script does not write them.
+`tools/gen_vehicle.py` writes the "proto" vehicle to `data/vehicle/proto/`. Proto has a box frame with ballast mass, a double-wishbone front, a solid rear axle (`REAR_SUSPENSION = "solid"`, Chrono `SolidThreeLinkAxle` with vertical coilovers) or a wishbone rear, rack-and-pinion steering, and limited-slip 4WD. The parameters (mass, geometry, ride frequency, damping ratios, travel) are at the top of the script. To change the vehicle, edit the script, run it, then press R in the app. Do not edit the generated JSON by hand. `engine.json` and `transmission.json` are copies of Chrono's HMMWV powertrain, and the script does not write them.
 
-`./build/suspension_sweep` runs a Chrono test rig. The rig holds the chassis and moves each wheel through its full travel, then turns the steering to full lock. The output is the toe and camber against wheel travel. Run it after each geometry change.
+`./build/suspension_sweep` runs a Chrono test rig. The rig holds the chassis and moves the wheels through their full travel, first together (heave), then in opposite directions (articulation). Then it turns the steering to full lock. The output is the toe and camber against wheel travel. On a solid axle, the toe change in articulation is roll steer. Run the sweep after each geometry change.
 
 - **Results (2026-11-24):**
   - Toe changes by less than 0.7 deg over 30 cm of travel.
   - Steer at full lock is 30 deg.
   - Over the 15 cm bump at about 6 m/s, pitch is -3.7/+6.8 deg, and the springs reach both stops.
   - The ride is soft. Tune it by feel.
+  - Solid rear (2026-11-24): heave gives no toe or camber change. Articulation reaches +/-20 cm of wheel travel and 12 deg of axle roll, with 0.2 deg of roll steer. The springs are inboard of the wheels, so the wheels articulate past the 12 cm stop setting.
+  - The SimpleDriveline torque goes to the wheel shafts, so the solid axle does not show torque lift (driveshaft torque reacting on the axle). Unconfirmed: check this before tuning for it.
 - **Spring curve convention:** `Free Length` is the ride length, and `Preload` holds the static load. The force is `Preload - curve(length - Free Length)`. The generator puts stiff progressive stops at the ends of the curve, because the JSON `Minimum/Maximum Length` stops are soft (1 kN at 10 mm).
 - **The HMMWV model (removed) was a trap for suspension work.** Its stock suspension rests on the droop stops. Its steering linkage goes over center at about 0.34 m front spring length: under throttle, a front wheel flipped to about 45 deg and locked there. Do not judge a suspension without a sweep of the full travel.
 
