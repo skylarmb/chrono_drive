@@ -13,6 +13,7 @@
 #include <chrono>
 #include <thread>
 
+#include "chrono/physics/ChBodyEasy.h"
 #include "chrono/physics/ChSystemSMC.h"
 
 #include "chrono_vehicle/ChVehicleDataPath.h"
@@ -31,7 +32,7 @@ using namespace chrono::vehicle::hmmwv;
 // -----------------------------------------------------------------------------
 
 // Grayscale heightmap: black = min_height, white = max_height.
-const std::string heightmap = CHRONO_DRIVE_DATA_DIR "maps/terrain3.bmp";
+const std::string heightmap = CHRONO_DRIVE_DATA_DIR "maps/test_track.bmp";  // tools/gen_heightmap.py
 // BENCH (temporary): env overrides for benchmarking.
 static double envd(const char* k, double d) { const char* v = getenv(k); return v ? atof(v) : d; }
 const double map_size = envd("MAP", 60.0);    // square map edge length [m]
@@ -51,6 +52,10 @@ int main() {
     ChSystemSMC sys;
     sys.SetCollisionSystemType(ChCollisionSystem::Type::BULLET);
     sys.SetGravitationalAcceleration(ChVector3d(0, 0, -9.81));
+    // Match the solver ChVehicle sets on a system it creates itself (ChVehicle.cpp). The generic
+    // default (PSOR) is too weak for the suspension and steering joints, which then stretch under load.
+    sys.SetSolverType(ChSolver::Type::BARZILAIBORWEIN);
+    sys.GetSolver()->AsIterative()->SetMaxIterations(150);
     sys.SetNumThreads((int)envd("THR", 8), (int)envd("THR", 8), 1);
 
     // -------------------------------------------------------------------------
@@ -69,6 +74,25 @@ int main() {
     terrain.Initialize(heightmap, map_size, map_size, min_height, max_height, grid_delta);
     terrain.SetPlotType(SCMTerrain::PLOT_SINKAGE, 0, 0.1);  // false-color ruts by depth
     terrain.GetMesh()->SetWireframe(envd("WIRE", 1) != 0);  // BENCH (temporary): WIRE=0 renders solid
+
+    // -------------------------------------------------------------------------
+    // Suspension test obstacles on the flat strip (+X from the spawn point)
+    // -------------------------------------------------------------------------
+    // Each bump is a fixed cylinder across the track, buried so that `height` shows above the ground.
+    auto bump_mat = chrono_types::make_shared<ChContactMaterialSMC>();
+    auto add_bump = [&](double x, double y, double width, double radius, double height) {
+        auto bump = chrono_types::make_shared<ChBodyEasyCylinder>(ChAxis::Y, radius, width, 1000, true, true, bump_mat);
+        bump->SetFixed(true);
+        bump->SetPos(ChVector3d(x, y, terrain.GetHeight(ChVector3d(x, y, 0)) + height - radius));
+        bump->GetVisualShape(0)->SetColor(ChColor(0.8f, 0.6f, 0.1f));
+        sys.Add(bump);
+    };
+    // Single full-width bump: both wheels of an axle hit it together (heave and pitch).
+    add_bump(10, 0, 3.0, 0.3, 0.12);
+    // Staggered bumps one wheelbase apart (HMMWV: 3.3 m): the front right and rear left wheels
+    // are on bumps at the same time, which twists the chassis (cross-axle articulation).
+    add_bump(20.0, 0.9, 1.0, 0.3, 0.12);   // left wheels
+    add_bump(23.3, -0.9, 1.0, 0.3, 0.12);  // right wheels
 
     // -------------------------------------------------------------------------
     // Vehicle: spawn at the map center, just above the ground

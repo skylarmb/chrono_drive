@@ -13,7 +13,7 @@ chrono_drive is a physics-first driving simulator built on Project Chrono. The g
 - `build-chrono/`: the Chrono build that chrono_drive links against (Vehicle + VSG, no demos). This directory is gitignored.
 - `build/`: the chrono_drive build. This directory is gitignored.
 - `build-crm/`: an experimental CUDA build of Chrono (FSI/SPH, CRM demos). It is not linked by chrono_drive.
-- `src/main.cpp`: the application. `data/maps/`: grayscale heightmaps.
+- `src/main.cpp`: the application. `data/maps/`: grayscale heightmaps. `tools/gen_heightmap.py` writes `test_track.bmp` (a flat strip along X with hills on both sides).
 
 ## Build and run
 
@@ -37,6 +37,7 @@ nix develop -c ./build/chrono_drive
 
 - **Flakes see only tracked files.** Run `git add` on a new or changed file before `nix develop`, or Nix does not see it.
 - **The vehicle does not step a system it does not own.** `main.cpp` creates `ChSystemSMC` and gives it to `HMMWV_Full`. Then `ChVehicle::Advance()` does not call `DoStepDynamics()` (see `ChVehicle.cpp`, `m_ownsSystem`). The loop must call `sys.DoStepDynamics()` itself.
+- **A system we own gets the wrong solver.** `ChVehicle` sets Barzilai-Borwein with 150 iterations only on a system it creates. Our system needs the same lines (`main.cpp`). With the default PSOR, the steering and suspension joints stretch: the front wheels wobble, fold in reverse, and the truck drifts about 4 m over 50 m with zero steering.
 - **Do not use `ChRealtimeStepTimer::Spin()`.** It pads each step to the step size and drops the extra time from render frames. The loop then runs slower than real time on any hardware. `main.cpp` paces on accumulated sim time against the wall clock.
 - **`CHRONO_VEHICLE_DATA_DIR` from the Chrono target is wrong for us.** It points to `build-chrono/bin/data/vehicle/`, which does not exist. Use `CHRONO_DATA_DIR "vehicle/"`.
 - **SCM timers are not per-step seconds.** `SCMTerrain::GetTimer*()` returns milliseconds, and the reset happens in `SCMLoader::ComputeInternalForces()`. Do not sum the values per step. Use `perf` or wall-clock timers.
