@@ -86,7 +86,7 @@ TRIANGLE_MASS, LOWER_LINK_MASS = 10.0, 6.0
 
 # Ride (per axle: front, rear)
 RIDE_FREQ = (1.3, 1.5)            # [Hz]
-DAMPING_COMPRESSION = (0.25, 0.25)  # fraction of critical
+DAMPING_COMPRESSION = (0.35, 0.35)  # fraction of critical
 DAMPING_REBOUND = (0.5, 0.5)        # fraction of critical
 DAMPER_KNEE = 0.4                 # wheel speed where damping falls to 40% [m/s]
 DROOP_TRAVEL = (0.12, 0.12)       # wheel travel down from ride height to the droop stop [m]
