@@ -36,9 +36,9 @@
     {
       "Input File": "proto/steering.json",
       "Location": [
-        1.35,
+        1.5,
         0,
-        0.0
+        0
       ],
       "Orientation": [
         1,

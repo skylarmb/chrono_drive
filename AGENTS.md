@@ -4,7 +4,7 @@ Notes for agents that work on chrono_drive. `README.md` holds the user-facing bu
 
 ## Project
 
-chrono_drive is a physics-first driving simulator built on Project Chrono. The goal is a base for a game in the style of Mudrunner: trucks that crawl through mud and over obstacles. The current state is a generated test vehicle ("proto": box frame, double-wishbone front, solid rear axle, compliant tires, low-range crawl gearing) on an SCM soil map with a test course. It has keyboard driving, chase, 3/4 and side cameras, a restart key, and fullscreen.
+chrono_drive is a physics-first driving simulator built on Project Chrono. The goal is a base for a game in the style of Mudrunner: trucks that crawl through mud and over obstacles. The current state is a generated test vehicle ("proto": box frame, solid front and rear axles, compliant tires, low-range crawl gearing) on an SCM soil map with a test course. It has keyboard driving, chase, 3/4 and side cameras, a restart key, and fullscreen.
 
 ## Status and next steps (2026-11-24)
 
@@ -19,7 +19,6 @@ chrono_drive is a physics-first driving simulator built on Project Chrono. The g
 - A deformed tire mesh with a flat spot (see "Tires").
 - Airing down at runtime: lower the tire stiffness (and show a larger flat spot).
 - Lugged tires (a tread mesh) for traction in soil.
-- A solid front axle. Chrono's "ToeBar" templates need `PitmanArm` or `RotaryArm` steering, not `RackPinion`.
 - A map and course in a JSON file, instead of code in `main.cpp`.
 
 **Open questions (not confirmed):**
@@ -84,7 +83,7 @@ nix develop -c ./build/chrono_drive
 
 ## Test vehicle (proto)
 
-`tools/gen_vehicle.py` writes the "proto" vehicle to `data/vehicle/proto/`. Proto has a box frame with ballast mass, a double-wishbone front, a solid rear axle (`REAR_SUSPENSION = "solid"`, Chrono `SolidThreeLinkAxle` with vertical coilovers) or a wishbone rear, rack-and-pinion steering, and limited-slip 4WD. The parameters (mass, geometry, ride frequency, damping ratios, travel) are at the top of the script. To change the vehicle, edit the script, run it, then press R in the app. Do not edit the generated JSON by hand. The script also writes `engine.json` and `transmission.json`: the HMMWV simple engine with a 3000 rpm governor, and its first two gears in low range (2.6:1). The top speed is about 3 m/s.
+`tools/gen_vehicle.py` writes the "proto" vehicle to `data/vehicle/proto/`. Proto has a box frame with ballast mass, a steerable solid front axle (`FRONT_SUSPENSION = "solid"`, Chrono `ToeBarPushPipeAxle` with `RotaryArm` steering) or a double-wishbone front with rack-and-pinion steering, a solid rear axle (`REAR_SUSPENSION = "solid"`, Chrono `SolidThreeLinkAxle`) or a wishbone rear, vertical coilovers on the solid axles, and limited-slip 4WD. The parameters (mass, geometry, ride frequency, damping ratios, travel) are at the top of the script. To change the vehicle, edit the script, run it, then press R in the app. Do not edit the generated JSON by hand. The script also writes `engine.json` and `transmission.json`: the HMMWV simple engine with a 3000 rpm governor, and its first two gears in low range (2.6:1). The top speed is about 3 m/s.
 
 `./build/suspension_sweep` runs a Chrono test rig. The rig holds the chassis and moves the wheels through their full travel, first together (heave), then in opposite directions (articulation). Then it turns the steering to full lock. The output is the toe and camber against wheel travel. On a solid axle, the toe change in articulation is roll steer. Run the sweep after each geometry change.
 
@@ -93,6 +92,7 @@ nix develop -c ./build/chrono_drive
   - Steer at full lock is 30 deg.
   - Over the 15 cm bump at about 6 m/s, pitch is -3.7/+6.8 deg, and the springs reach both stops.
   - The ride is soft. Tune it by feel.
+  - Solid front (2026-11-24): a push pipe to a ball joint 1.4 m behind the axle (about +/-6 deg of caster change over the travel), a Panhard rod, and a drag link from the left frame rail to the right knuckle. The drag link and the Panhard rod must be parallel and at the same height. A 5 cm height difference gave 6.8 deg of roll steer. Now: heave toe change 0.44 deg, articulation roll steer 0.9 deg, full lock 30.4 deg.
   - Solid rear (2026-11-24): heave gives no toe or camber change. Articulation reaches +/-20 cm of wheel travel and 12 deg of axle roll, with 0.2 deg of roll steer. The springs are inboard of the wheels, so the wheels articulate past the 12 cm stop setting.
   - The SimpleDriveline torque goes to the wheel shafts, so the solid axle does not show torque lift (driveshaft torque reacting on the axle). Unconfirmed: check this before tuning for it.
 - **Spring curve convention:** `Free Length` is the ride length, and `Preload` holds the static load. The force is `Preload - curve(length - Free Length)`. The generator puts stiff progressive stops at the ends of the curve, because the JSON `Minimum/Maximum Length` stops are soft (1 kN at 10 mm).

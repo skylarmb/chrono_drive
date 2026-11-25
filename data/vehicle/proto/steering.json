@@ -1,20 +1,35 @@
 {
-  "Name": "proto rack and pinion",
+  "Name": "proto rotary arm",
   "Type": "Steering",
-  "Template": "RackPinion",
-  "Steering Link": {
-    "Mass": 5.0,
-    "COM": 0,
+  "Template": "RotaryArm",
+  "Pitman Arm": {
+    "Mass": 3.0,
     "Inertia": [
-      0.3,
       0.01,
-      0.3
+      0.01,
+      0.002
+    ],
+    "Inertia Products": [
+      0,
+      0,
+      0
     ],
     "Radius": 0.03,
-    "Length": 0.8171428571428572
-  },
-  "Pinion": {
-    "Radius": 0.14323944878270578,
-    "Maximum Angle (deg)": 29.999999999999996
+    "Axis of Rotation": [
+      -1,
+      0,
+      0
+    ],
+    "Point of Rotation": [
+      0.18,
+      0.55,
+      0.35
+    ],
+    "Point to Draglink": [
+      0.18,
+      0.55,
+      0.15
+    ],
+    "Maximum Angle (deg)": 26.743683950403
   }
 }

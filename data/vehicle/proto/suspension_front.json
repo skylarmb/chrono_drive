@@ -1,7 +1,7 @@
 {
-  "Name": "proto front double wishbone",
+  "Name": "proto front push-pipe axle",
   "Type": "Suspension",
-  "Template": "DoubleWishbone",
+  "Template": "ToeBarPushPipeAxle",
   "Camber Angle (deg)": 0,
   "Toe Angle (deg)": 0,
   "Spindle": {
@@ -19,184 +19,181 @@
     "Radius": 0.1,
     "Width": 0.06
   },
-  "Upright": {
-    "Mass": 15.0,
+  "Axle Tube": {
+    "Mass": 120.0,
     "COM": [
-      0.0,
-      0.79,
-      0.02500000000000001
-    ],
-    "Moments of Inertia": [
-      0.2,
-      0.2,
-      0.05
-    ],
-    "Products of Inertia": [
       0,
       0,
       0
     ],
-    "Radius": 0.04
-  },
-  "Upper Control Arm": {
-    "Mass": 5.0,
-    "COM": [
-      0,
-      0.61,
-      0.2
+    "Inertia": [
+      32.4,
+      0.5,
+      32.4
     ],
-    "Moments of Inertia": [
-      0.0375,
-      0.006,
-      0.0375
-    ],
-    "Products of Inertia": [
-      0,
+    "Radius": 0.05,
+    "Portal Offset": 0.0,
+    "Location Connector Chassis": [
+      -1.4,
       0,
       0
-    ],
-    "Radius": 0.02,
-    "Location Chassis Front": [
-      0.15,
-      0.46,
-      0.2
-    ],
-    "Location Chassis Back": [
-      -0.15,
-      0.46,
-      0.2
-    ],
-    "Location Upright": [
-      0,
-      0.76,
-      0.2
-    ]
-  },
-  "Lower Control Arm": {
-    "Mass": 8.0,
-    "COM": [
-      0,
-      0.5950000000000001,
-      -0.15
-    ],
-    "Moments of Inertia": [
-      0.135,
-      0.009000000000000001,
-      0.135
-    ],
-    "Products of Inertia": [
-      0,
-      0,
-      0
-    ],
-    "Radius": 0.03,
-    "Location Chassis Front": [
-      0.2,
-      0.37000000000000005,
-      -0.15
-    ],
-    "Location Chassis Back": [
-      -0.2,
-      0.37000000000000005,
-      -0.15
-    ],
-    "Location Upright": [
-      0,
-      0.8200000000000001,
-      -0.15
-    ]
-  },
-  "Tierod": {
-    "Location Chassis": [
-      -0.15,
-      0.4085714285714286,
-      0.0
-    ],
-    "Location Upright": [
-      -0.15,
-      0.7942857142857144,
-      0.0
     ]
   },
   "Spring": {
     "Location Chassis": [
       0.0,
-      0.6125,
-      0.35
+      0.62,
+      0.45
     ],
-    "Location Arm": [
+    "Location Axle": [
       0.0,
-      0.6625000000000001,
-      -0.15
+      0.62,
+      -0.05
     ],
-    "Free Length": 0.5024937810560445,
-    "Preload": 7583.790757168917,
+    "Free Length": 0.5,
+    "Preload": 4905.0,
     "Spring Curve Data": [
       [
-        -0.13701612604547395,
-        -298013.59610084724
+        -0.19,
+        -126431.6062988349
       ],
       [
-        -0.11701612604547396,
-        -57179.45734722522
+        -0.16999999999999998,
+        -25686.632414275162
       ],
       [
-        -0.09701612604547395,
-        -7736.687139527998
+        -0.15,
+        -5003.889431352304
       ],
       [
         0,
         0
       ],
       [
-        0.07761290083637916,
-        6189.349711622398
+        0.12,
+        4003.111545081843
       ],
       [
-        0.09761290083637916,
-        54037.19184810358
+        0.13999999999999999,
+        24018.66927049106
       ],
       [
-        0.11761290083637915,
-        293276.4025305096
+        0.16,
+        124096.45789753716
       ]
     ]
   },
   "Shock": {
     "Location Chassis": [
       0.0,
-      0.6125,
-      0.35
+      0.62,
+      0.45
     ],
-    "Location Arm": [
+    "Location Axle": [
       0.0,
-      0.6625000000000001,
-      -0.15
+      0.62,
+      -0.05
     ],
     "Damping Curve Data": [
       [
         -2.0,
-        -4663.0
+        -2123.7
       ],
       [
-        -0.2587096694545972,
-        -1262.9
+        -0.4,
+        -816.8
       ],
       [
         0.0,
         0.0
       ],
       [
-        0.2587096694545972,
-        2525.8
+        0.4,
+        1633.6
       ],
       [
         2.0,
-        9326.0
+        4247.4
       ]
     ]
   },
   "Axle": {
     "Inertia": 0.4
+  },
+  "Knuckle": {
+    "Mass": 15.0,
+    "COM": [
+      0,
+      0.81,
+      0
+    ],
+    "Inertia": [
+      0.1,
+      0.1,
+      0.1
+    ],
+    "Radius": 0.05,
+    "Location Lower": [
+      0,
+      0.82,
+      -0.12
+    ],
+    "Location Upper": [
+      0,
+      0.8,
+      0.12
+    ],
+    "Location Draglink": [
+      0.18,
+      -0.7975000000000001,
+      0.15
+    ]
+  },
+  "Panhard Rod": {
+    "Mass": 6.0,
+    "Inertia": [
+      0.8450000000000001,
+      0.007,
+      0.8450000000000001
+    ],
+    "Radius": 0.02,
+    "Location Connector Chassis": [
+      0.08,
+      0.55,
+      0.15
+    ],
+    "Location Connector Axle": [
+      0.08,
+      -0.75,
+      0.15
+    ]
+  },
+  "Tierod": {
+    "Mass": 3.0,
+    "Inertia": [
+      0.6561000000000001,
+      0.004,
+      0.6561000000000001
+    ],
+    "Location Knuckle": [
+      -0.15,
+      0.81,
+      0
+    ],
+    "Radius": 0.02
+  },
+  "Draglink": {
+    "Mass": 3.0,
+    "Inertia": [
+      0.3,
+      0.3,
+      0.001
+    ],
+    "Radius": 0.02,
+    "Location Chassis": [
+      0.18,
+      0.55,
+      0.15
+    ]
   }
 }

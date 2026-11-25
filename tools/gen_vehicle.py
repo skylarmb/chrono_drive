@@ -57,8 +57,22 @@ TIEROD_HEIGHT = 0.0
 SPRING_ON_ARM = 0.65              # coilover mount, fraction of lower arm from inner pivot
 SPRING_TOP = (0.05, 0.35)         # coilover top: (inboard of the bottom mount, height)
 
-# Rear suspension type: "solid" (three-link coilover axle) or "wishbone" (same as the front)
+# Suspension types. Front: "solid" (steerable push-pipe axle) or "wishbone".
+# Rear: "solid" (three-link coilover axle) or "wishbone" (same as the wishbone front).
+FRONT_SUSPENSION = "solid"
 REAR_SUSPENSION = "solid"
+
+# Steerable solid front axle (Chrono ToeBarPushPipeAxle, RotaryArm steering).
+# Points are relative to the axle center at ride height [m]. Left side, unless noted.
+PUSH_PIPE_LENGTH = 1.4            # ball joint on the frame, this far behind the axle (sets the caster change)
+KINGPIN = ((0.82, -0.12), (0.80, 0.12))  # (y, z) of the lower and upper kingpin points
+KNUCKLE_ARM = 0.18                # drag link point on the right knuckle, ahead of the kingpin
+DRAGLINK_HEIGHT = 0.15
+STEERING_BOX_Y = 0.55             # steering box on the left frame rail; drag link crosses to the right knuckle
+PITMAN_ARM_LENGTH = 0.20          # swings sideways about a fore-aft axis
+PANHARD = (0.08, 0.55, -0.75)     # (x, y on the frame, y on the axle). At the drag link height and
+                                  # parallel to it: then the axle roll does not steer the wheels.
+KNUCKLE_MASS, TIEROD_MASS, DRAGLINK_MASS, PANHARD_MASS, PITMAN_ARM_MASS = 15.0, 3.0, 3.0, 6.0, 3.0
 
 # Solid axle geometry (relative to the axle center at ride height; links point forward) [m]
 AXLE_TUBE_MASS = 120.0            # tube, differential, and brakes [kg]
@@ -242,6 +256,45 @@ def solid_axle(axle):
     }
 
 
+def kingpin_y(z):
+    """Y of the solid-axle kingpin line at height z."""
+    (y0, z0), (y1, z1) = KINGPIN
+    return lerp_y(y0, z0, y1, z1, z)
+
+
+def steerable_solid_axle():
+    """Steerable push-pipe solid front axle JSON (Chrono ToeBarPushPipeAxle) with vertical coilovers.
+
+    A push pipe from a ball joint on the frame, PUSH_PIPE_LENGTH behind the axle, locates the axle
+    fore-aft and takes the drive and brake torque. A Panhard rod locates it sideways. The axle can
+    heave (it swings about the ball joint, so the caster changes) and roll (articulate).
+    A tie rod behind the axle joins the knuckles. A drag link from the pitman arm on the left frame
+    rail crosses to the right knuckle, parallel to the Panhard rod, to keep the bump steer low.
+    """
+    s = solid_axle(0)  # same spindle, axle tube, and coilovers as the rear axle
+    del s["Triangular Link"], s["Longitudinal Link"]
+    (y_kl, z_kl), (y_ku, z_ku) = KINGPIN
+    px, py_frame, py_axle = PANHARD
+    pz = DRAGLINK_HEIGHT
+    s.update({
+        "Name": "proto front push-pipe axle",
+        "Template": "ToeBarPushPipeAxle",
+        "Knuckle": {"Mass": KNUCKLE_MASS, "COM": [0, (y_kl + y_ku) / 2, 0], "Inertia": [0.1, 0.1, 0.1],
+                    "Radius": 0.05, "Location Lower": [0, y_kl, z_kl], "Location Upper": [0, y_ku, z_ku],
+                    # y < 0: the right knuckle carries the drag link
+                    "Location Draglink": [KNUCKLE_ARM, -kingpin_y(DRAGLINK_HEIGHT), DRAGLINK_HEIGHT]},
+        "Panhard Rod": {"Mass": PANHARD_MASS, "Inertia": rod_inertia(PANHARD_MASS, py_frame - py_axle),
+                        "Radius": 0.02, "Location Connector Chassis": [px, py_frame, pz],
+                        "Location Connector Axle": [px, py_axle, pz]},
+        "Tierod": {"Mass": TIEROD_MASS, "Inertia": rod_inertia(TIEROD_MASS, 2 * kingpin_y(0)),
+                   "Location Knuckle": [-STEERING_ARM, kingpin_y(0), 0], "Radius": 0.02},
+        "Draglink": {"Mass": DRAGLINK_MASS, "Inertia": [0.3, 0.3, 1e-3], "Radius": 0.02,  # Z along the link
+                     "Location Chassis": [KNUCKLE_ARM, STEERING_BOX_Y, DRAGLINK_HEIGHT]},
+    })
+    s["Axle Tube"].update({"Portal Offset": 0.0, "Location Connector Chassis": [-PUSH_PIPE_LENGTH, 0, 0]})
+    return s
+
+
 def chassis():
     lx, ly, lz = INERTIA_BOX
     m = SPRUNG_MASS
@@ -286,8 +339,10 @@ def vehicle():
         "Chassis": {"Input File": "proto/chassis.json"},
         "Axles": [axle(x_front, "suspension_front.json", "brake.json", True),
                   axle(x_rear, "suspension_rear.json", "brake.json", False)],
+        # Rack and pinion: at the tie rod inner points. Rotary arm: points are relative to the axle center.
         "Steering Subsystems": [{"Input File": "proto/steering.json",
-                                 "Location": [x_front + tierod_in[0], 0, tierod_in[2]],
+                                 "Location": [x_front, 0, 0] if FRONT_SUSPENSION == "solid"
+                                 else [x_front + tierod_in[0], 0, tierod_in[2]],
                                  "Orientation": [1, 0, 0, 0]}],
         "Wheelbase": WHEELBASE,
         "Minimum Turning Radius": WHEELBASE / math.sin(math.radians(MAX_STEER_DEG)),
@@ -297,6 +352,20 @@ def vehicle():
 
 
 def steering():
+    if FRONT_SUSPENSION == "solid":
+        # Pitman arm on the frame rail; it swings the drag link end sideways. Drag link travel at
+        # full lock: knuckle arm * sin(max steer).
+        travel = KNUCKLE_ARM * math.sin(math.radians(MAX_STEER_DEG))
+        return {
+            "Name": "proto rotary arm",
+            "Type": "Steering",
+            "Template": "RotaryArm",
+            "Pitman Arm": {"Mass": PITMAN_ARM_MASS, "Inertia": [0.01, 0.01, 0.002], "Inertia Products": [0, 0, 0],
+                           "Radius": 0.03, "Axis of Rotation": [-1, 0, 0],  # sign: left steer input turns the wheels left
+                           "Point of Rotation": [KNUCKLE_ARM, STEERING_BOX_Y, DRAGLINK_HEIGHT + PITMAN_ARM_LENGTH],
+                           "Point to Draglink": [KNUCKLE_ARM, STEERING_BOX_Y, DRAGLINK_HEIGHT],
+                           "Maximum Angle (deg)": math.degrees(math.asin(travel / PITMAN_ARM_LENGTH))},
+        }
     # The rack moves the tie rod inner points. Rack travel at full lock: steering arm * sin(max steer).
     rack_travel = STEERING_ARM * math.sin(math.radians(MAX_STEER_DEG))
     pinion_angle = math.radians(30)
@@ -334,7 +403,7 @@ def main():
     files = {
         "vehicle.json": vehicle(),
         "chassis.json": chassis(),
-        "suspension_front.json": wishbone(0),
+        "suspension_front.json": steerable_solid_axle() if FRONT_SUSPENSION == "solid" else wishbone(0),
         "suspension_rear.json": solid_axle(1) if REAR_SUSPENSION == "solid" else wishbone(1),
         "steering.json": steering(),
         "tire.json": tire(),
