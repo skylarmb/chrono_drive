@@ -84,6 +84,14 @@ COIL_AXLE = (0.62, -0.05)         # coilover axle mount: (half spacing, height)
 COIL_TOP_HEIGHT = 0.45            # coilover chassis mount height (vertical coilover)
 TRIANGLE_MASS, LOWER_LINK_MASS = 10.0, 6.0
 
+# Anti-roll bars (solid axles only; Chrono AntirollBarRSD). A torsion bar on the frame, with levers and
+# drop links to the axle tube. The front bar sits ahead of its axle, the rear bar behind its axle.
+ARB_ROLL_SHARE = (0.5, 0.5)       # bar roll stiffness / spring roll stiffness, per axle (0 = no bar)
+ARB_HALF_WIDTH = 0.45             # drop links at this distance from the center [m]
+ARB_LEVER = 0.35                  # lever length, bar to drop link (fore-aft) [m]
+ARB_HEIGHT = 0.30                 # bar above the axle center; the drop links go down to the tube [m]
+ARB_ARM_MASS = 3.0                # each half of the bar with its lever [kg]
+
 # Ride (per axle: front, rear)
 RIDE_FREQ = (1.3, 1.5)            # [Hz]
 DAMPING_COMPRESSION = (0.35, 0.35)  # fraction of critical
@@ -295,6 +303,28 @@ def steerable_solid_axle():
     return s
 
 
+def antirollbar(axle):
+    """Anti-roll bar JSON for solid axle 0 (front) or 1 (rear).
+
+    Axle roll phi (relative to the frame) moves the drop links +/- L phi, which twists the bar 2 L phi / W.
+    So the roll stiffness at the axle is 4 L^2 k / W^2 for a bar torsion stiffness k.
+    """
+    k_wheel = (2 * math.pi * RIDE_FREQ[axle]) ** 2 * corner_mass[axle]
+    k_roll_springs = 2 * k_wheel * COIL_AXLE[0] ** 2  # vertical coilovers on the axle, motion ratio 1
+    k_bar = ARB_ROLL_SHARE[axle] * k_roll_springs * ARB_LEVER**2 / (4 * ARB_HALF_WIDTH**2)
+    lever = -ARB_LEVER if axle == 0 else ARB_LEVER  # from the bar to the axle, along X
+    return {"Name": "proto " + ("front" if axle == 0 else "rear") + " anti-roll bar",
+            "Type": "Antirollbar", "Template": "AntirollBarRSD",
+            "Arm": {"Mass": ARB_ARM_MASS, "Inertia": rod_inertia(ARB_ARM_MASS, ARB_HALF_WIDTH),
+                    "Length": ARB_HALF_WIDTH, "Width": lever, "Radius": 0.02},
+            "Droplink": {"Height": -ARB_HEIGHT},
+            "RSD": {"Spring Coefficient": k_bar, "Damping Coefficient": 0.0}}
+
+
+def has_antirollbar(axle):
+    return [FRONT_SUSPENSION, REAR_SUSPENSION][axle] == "solid" and ARB_ROLL_SHARE[axle] > 0
+
+
 def chassis():
     lx, ly, lz = INERTIA_BOX
     m = SPRUNG_MASS
@@ -325,11 +355,16 @@ def vehicle():
     x_front, x_rear = WHEELBASE / 2, -WHEELBASE / 2
 
     def axle(x, susp, brake, steer):
+        i = 0 if steer else 1
         a = {"Suspension Input File": "proto/" + susp, "Suspension Location": [x, 0, 0],
              "Left Wheel Input File": "proto/wheel.json", "Right Wheel Input File": "proto/wheel.json",
              "Left Brake Input File": "proto/brake.json", "Right Brake Input File": "proto/brake.json"}
         if steer:
             a["Steering Index"] = 0
+        if has_antirollbar(i):
+            lever = antirollbar(i)["Arm"]["Width"]
+            a["Antirollbar Input File"] = f"proto/antirollbar_{i}.json"
+            a["Antirollbar Location"] = [x - lever, 0, ARB_HEIGHT]  # bar center
         return a
 
     return {
@@ -426,6 +461,9 @@ def main():
                            "Front Conical Gear Ratio": CONICAL_GEAR_RATIO,
                            "Rear Conical Gear Ratio": CONICAL_GEAR_RATIO},
     }
+    for i in (0, 1):
+        if has_antirollbar(i):
+            files[f"antirollbar_{i}.json"] = antirollbar(i)
     for name, data in files.items():
         with open(os.path.join(OUT, name), "w") as f:
             json.dump(data, f, indent=2)

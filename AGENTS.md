@@ -24,7 +24,6 @@ chrono_drive is a physics-first driving simulator built on Project Chrono. The g
 **Open questions (not confirmed):**
 - Torque lift on the solid axle: does `ChSimpleDriveline` torque react on the axle tube? Probably not.
 - Once, after the spawn drop, the engine read 3769 rpm (governor 3000) at zero torque. This is probably a coast after the drop. Check it if the engine feels wrong.
-- There is no anti-roll bar. Body roll comes from the springs only.
 
 **Cleanup to do:**
 - Remove the temporary environment code in `main.cpp` (`BENCH`, `LOG`, `SHOT`, `PREVIEW`, and the others in "Benchmark mode") when the user agrees.
@@ -94,6 +93,7 @@ nix develop -c ./build/chrono_drive
   - The ride is soft. Tune it by feel.
   - Solid front (2026-11-24): a push pipe to a ball joint 1.4 m behind the axle (about +/-6 deg of caster change over the travel), a Panhard rod, and a drag link from the left frame rail to the right knuckle. The drag link and the Panhard rod must be parallel and at the same height. A 5 cm height difference gave 6.8 deg of roll steer. Now: heave toe change 0.44 deg, articulation roll steer 0.9 deg, full lock 30.4 deg.
   - Solid rear (2026-11-24): heave gives no toe or camber change. Articulation reaches +/-20 cm of wheel travel and 12 deg of axle roll, with 0.2 deg of roll steer. The springs are inboard of the wheels, so the wheels articulate past the 12 cm stop setting.
+  - Anti-roll bars (2026-11-24): Chrono `AntirollBarRSD` on each solid axle. Its drop links attach to the axle tube (fork patch: `GetAntirollBody` on the solid axles). `ARB_ROLL_SHARE` sets the bar roll stiffness as a share of the spring roll stiffness (0.5). On the side slope, body roll on the axles fell from 1.5 to 0.9 deg (front) and 0.7 deg (rear). In the ditches, peak axle articulation fell by about 1 deg.
   - The SimpleDriveline torque goes to the wheel shafts, so the solid axle does not show torque lift (driveshaft torque reacting on the axle). Unconfirmed: check this before tuning for it.
 - **Spring curve convention:** `Free Length` is the ride length, and `Preload` holds the static load. The force is `Preload - curve(length - Free Length)`. The generator puts stiff progressive stops at the ends of the curve, because the JSON `Minimum/Maximum Length` stops are soft (1 kN at 10 mm).
 - **The HMMWV model (removed) was a trap for suspension work.** Its stock suspension rests on the droop stops. Its steering linkage goes over center at about 0.34 m front spring length: under throttle, a front wheel flipped to about 45 deg and locked there. Do not judge a suspension without a sweep of the full travel.

@@ -1,0 +1,23 @@
+{
+  "Name": "proto front anti-roll bar",
+  "Type": "Antirollbar",
+  "Template": "AntirollBarRSD",
+  "Arm": {
+    "Mass": 3.0,
+    "Inertia": [
+      0.050625,
+      0.004,
+      0.050625
+    ],
+    "Length": 0.45,
+    "Width": -0.35,
+    "Radius": 0.02
+  },
+  "Droplink": {
+    "Height": -0.3
+  },
+  "RSD": {
+    "Spring Coefficient": 1939.32633278147,
+    "Damping Coefficient": 0.0
+  }
+}

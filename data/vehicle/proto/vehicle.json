@@ -17,7 +17,13 @@
       "Right Wheel Input File": "proto/wheel.json",
       "Left Brake Input File": "proto/brake.json",
       "Right Brake Input File": "proto/brake.json",
-      "Steering Index": 0
+      "Steering Index": 0,
+      "Antirollbar Input File": "proto/antirollbar_0.json",
+      "Antirollbar Location": [
+        1.85,
+        0,
+        0.3
+      ]
     },
     {
       "Suspension Input File": "proto/suspension_rear.json",
@@ -29,7 +35,13 @@
       "Left Wheel Input File": "proto/wheel.json",
       "Right Wheel Input File": "proto/wheel.json",
       "Left Brake Input File": "proto/brake.json",
-      "Right Brake Input File": "proto/brake.json"
+      "Right Brake Input File": "proto/brake.json",
+      "Antirollbar Input File": "proto/antirollbar_1.json",
+      "Antirollbar Location": [
+        -1.85,
+        0,
+        0.3
+      ]
     }
   ],
   "Steering Subsystems": [
